@@ -1,0 +1,407 @@
+{% extends 'base.html' %}
+
+{% block title %}محلل البيانات{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-2 bg-light sidebar">
+            <div class="sidebar-sticky">
+                <div class="d-flex flex-column align-items-center text-center p-3">
+                    <i class="fas fa-user-circle fa-3x mb-2"></i>
+                    <h5>{{ current_user.name }}</h5>
+                    <p class="text-muted">تدريسي</p>
+                </div>
+                <hr>
+                <a href="{{ url_for('instructor_dashboard') }}" class="btn btn-primary w-100 mb-3">
+                    <i class="fas fa-tachometer-alt me-2"></i>
+                    لوحة التحكم
+                </a>
+                <a href="{{ url_for('instructor_reports') }}" class="btn btn-primary w-100 mb-3">
+                    <i class="fas fa-chart-bar me-2"></i>
+                    التقارير
+                </a>
+                <a href="{{ url_for('data_parser') }}" class="btn btn-success w-100 mb-3">
+                    <i class="fas fa-file-excel me-2"></i>
+                    استيراد البيانات
+                </a>
+                <a href="{{ url_for('student_modifications') }}" class="btn btn-primary w-100 mb-3">
+                    <i class="fas fa-user-edit me-2"></i>
+                    تعديل الطلاب
+                </a>
+                <a href="{{ url_for('logout') }}" class="btn btn-danger w-100">
+                    <i class="fas fa-sign-out-alt me-2"></i>
+                    تسجيل الخروج
+                </a>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <main role="main" class="col-md-10 ml-sm-auto px-4">
+            <div class="d-flex justify-content-center flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                <h1 class="h2 text-center">استيراد البيانات من ملفات Excel</h1>
+            </div>
+
+            <div class="row justify-content-center">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="card-title mb-0">رفع ملف Excel</h5>
+                        </div>
+                        <div class="card-body">
+                            <form id="uploadForm" enctype="multipart/form-data">
+                                <div class="form-group mb-3">
+                                    <label for="tableType" class="form-label">اختر نوع البيانات:</label>
+                                    <select class="form-select" id="tableType" name="table_type" required>
+                                        <option value="">-- اختر نوع البيانات --</option>
+                                        <option value="students">بيانات الطلاب</option>
+                                        <option value="grades">بيانات الدرجات</option>
+                                        <option value="courses">بيانات المقررات</option>
+                                    </select>
+                                </div>
+                                <div class="form-group mb-3">
+                                    <label for="fileInput" class="form-label">اختر ملف Excel:</label>
+                                    <input type="file" class="form-control" id="fileInput" name="file" accept=".xlsx,.xls,.csv" required>
+                                    <small class="form-text text-muted">الملفات المدعومة: .xlsx, .xls, .csv</small>
+                                </div>
+                                <div class="form-group text-center">
+                                    <button type="submit" class="btn btn-primary" id="uploadBtn">
+                                        <i class="fas fa-upload me-2"></i>رفع الملف
+                                    </button>
+                                </div>
+                            </form>
+                            <div id="errorAlert" class="alert alert-danger d-none mt-3"></div>
+                            <div id="uploadStatus" class="alert alert-info d-none mt-3">
+                                <div class="d-flex align-items-center">
+                                    <div class="spinner-border spinner-border-sm me-2" role="status">
+                                        <span class="visually-hidden">جاري الرفع...</span>
+                                    </div>
+                                    <span>جاري رفع ومعالجة الملف، يرجى الانتظار...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Data Preview -->
+            <div class="row justify-content-center mt-4" id="previewContainer" style="display: none;">
+                <div class="col-md-10">
+                    <div class="card">
+                        <div class="card-header bg-info text-white">
+                            <h5 class="card-title mb-0">معاينة البيانات</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="missingColumnsAlert" class="alert alert-warning" style="display: none;">
+                                <strong>تنبيه!</strong> هناك أعمدة مطلوبة مفقودة في الملف المرفوع.
+                                <div id="missingColumnsList"></div>
+                            </div>
+                            
+                            <div class="table-responsive">
+                                <table class="table table-striped table-bordered" id="previewTable">
+                                    <thead class="thead-dark">
+                                        <tr id="previewHeader"></tr>
+                                    </thead>
+                                    <tbody id="previewBody"></tbody>
+                                </table>
+                            </div>
+                            
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <span class="badge badge-info" id="totalRows"></span>
+                                </div>
+                                <div>
+                                    <button type="button" class="btn btn-success" id="importBtn">استيراد البيانات</button>
+                                    <button type="button" class="btn btn-secondary" id="cancelBtn">إلغاء</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Import Results -->
+            <div class="row justify-content-center mt-4" id="resultsContainer" style="display: none;">
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="card-title mb-0">نتائج الاستيراد</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="alert alert-success">
+                                <strong>تم الاستيراد بنجاح!</strong>
+                                <div id="successCount"></div>
+                            </div>
+                            
+                            <div id="errorsAlert" class="alert alert-warning" style="display: none;">
+                                <strong>تحذير!</strong> بعض البيانات لم يتم استيرادها.
+                                <div id="errorCount"></div>
+                                
+                                <div class="mt-3">
+                                    <button class="btn btn-sm btn-outline-secondary" type="button" data-toggle="collapse" data-target="#errorsDetails">
+                                        عرض التفاصيل
+                                    </button>
+                                </div>
+                                
+                                <div class="collapse mt-2" id="errorsDetails">
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-bordered">
+                                            <thead>
+                                                <tr>
+                                                    <th>الصف</th>
+                                                    <th>الخطأ</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="errorsBody"></tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="text-center">
+                                <button type="button" class="btn btn-primary" id="newImportBtn">استيراد ملف جديد</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(document).ready(function() {
+        // رفع الملف
+        $('#uploadForm').on('submit', function(e) {
+            e.preventDefault();
+            
+            // إخفاء أي رسائل خطأ سابقة
+            $('#errorAlert').addClass('d-none');
+            
+            // التحقق من اختيار ملف
+            var fileInput = $('#fileInput')[0];
+            if (fileInput.files.length === 0) {
+                showError('الرجاء اختيار ملف');
+                return;
+            }
+            
+            // التحقق من نوع الجدول
+            var tableType = $('#tableType').val();
+            if (!tableType) {
+                showError('الرجاء اختيار نوع الجدول');
+                return;
+            }
+            
+            // إنشاء FormData
+            var formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('table_type', tableType);
+            
+            // إظهار مؤشر التحميل
+            showLoading();
+            
+            // تعطيل زر الرفع أثناء المعالجة
+            $('#uploadBtn').prop('disabled', true);
+            $('#uploadStatus').removeClass('d-none');
+            
+            console.log('بدء رفع الملف:', fileInput.files[0].name, 'نوع الجدول:', tableType);
+            
+            $.ajax({
+                url: '/upload_file',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                timeout: 60000, // زيادة مهلة الانتظار إلى 60 ثانية
+                success: function(response) {
+                    console.log('تم استلام استجابة ناجحة:', response);
+                    hideLoading();
+                    $('#uploadBtn').prop('disabled', false);
+                    $('#uploadStatus').addClass('d-none');
+                    
+                    if (response.success) {
+                        // عرض معاينة البيانات
+                        showPreview(response);
+                    } else {
+                        showError(response.error || 'حدث خطأ غير معروف');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('خطأ في رفع الملف:', status, error);
+                    console.error('استجابة الخادم:', xhr.responseText);
+                    
+                    hideLoading();
+                    $('#uploadBtn').prop('disabled', false);
+                    $('#uploadStatus').addClass('d-none');
+                    
+                    // محاولة تحليل رسالة الخطأ من الاستجابة
+                    try {
+                        var errorResponse = JSON.parse(xhr.responseText);
+                        showError(errorResponse.error || 'حدث خطأ أثناء رفع الملف');
+                    } catch (e) {
+                        if (status === 'timeout') {
+                            showError('انتهت مهلة الاتصال بالخادم. قد يكون الملف كبيرًا جدًا أو هناك مشكلة في الاتصال.');
+                        } else {
+                            showError('حدث خطأ أثناء رفع الملف: ' + (error || status));
+                        }
+                    }
+                }
+            });
+        });
+        
+        // استيراد البيانات
+        $('#importBtn').on('click', function() {
+            // إظهار مؤشر التحميل
+            showLoading();
+            
+            // تعطيل زر الاستيراد أثناء المعالجة
+            $('#importBtn').prop('disabled', true);
+            
+            console.log('بدء استيراد البيانات');
+            
+            $.ajax({
+                url: '/import_data',
+                type: 'POST',
+                timeout: 60000, // زيادة مهلة الانتظار إلى 60 ثانية
+                success: function(response) {
+                    console.log('تم استلام استجابة من استيراد البيانات:', response);
+                    hideLoading();
+                    $('#importBtn').prop('disabled', false);
+                    
+                    if (response.success) {
+                        showResults(response);
+                    } else {
+                        showError(response.error || 'حدث خطأ غير معروف أثناء استيراد البيانات');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('خطأ في استيراد البيانات:', status, error);
+                    console.error('استجابة الخادم:', xhr.responseText);
+                    
+                    hideLoading();
+                    $('#importBtn').prop('disabled', false);
+                    
+                    // محاولة تحليل رسالة الخطأ من الاستجابة
+                    try {
+                        var errorResponse = JSON.parse(xhr.responseText);
+                        showError(errorResponse.error || 'حدث خطأ أثناء استيراد البيانات');
+                    } catch (e) {
+                        if (status === 'timeout') {
+                            showError('انتهت مهلة الاتصال بالخادم أثناء استيراد البيانات.');
+                        } else {
+                            showError('حدث خطأ أثناء استيراد البيانات: ' + (error || status));
+                        }
+                    }
+                }
+            });
+        });
+        
+        // إلغاء الاستيراد
+        $('#cancelBtn').on('click', function() {
+            resetForm();
+        });
+        
+        // استيراد ملف جديد
+        $('#newImportBtn').on('click', function() {
+            resetForm();
+        });
+        
+        // عرض معاينة البيانات
+        function showPreview(data) {
+            // إخفاء نموذج الرفع وإظهار المعاينة
+            $('#previewContainer').show();
+            
+            // التحقق من الأعمدة المفقودة
+            if (data.missing_columns && data.missing_columns.length > 0) {
+                var missingList = '<ul>';
+                data.missing_columns.forEach(function(col) {
+                    missingList += '<li>' + col + '</li>';
+                });
+                missingList += '</ul>';
+                
+                $('#missingColumnsList').html(missingList);
+                $('#missingColumnsAlert').show();
+            } else {
+                $('#missingColumnsAlert').hide();
+            }
+            
+            // إنشاء رأس الجدول
+            var headerRow = '';
+            data.columns.forEach(function(col) {
+                headerRow += '<th>' + col + '</th>';
+            });
+            $('#previewHeader').html(headerRow);
+            
+            // إنشاء صفوف البيانات
+            var tableBody = '';
+            data.preview.forEach(function(row) {
+                var rowHtml = '<tr>';
+                data.columns.forEach(function(col) {
+                    rowHtml += '<td>' + (row[col] !== undefined ? row[col] : '') + '</td>';
+                });
+                rowHtml += '</tr>';
+                tableBody += rowHtml;
+            });
+            $('#previewBody').html(tableBody);
+            
+            // عرض عدد الصفوف
+            $('#totalRows').text('عدد الصفوف: ' + data.total_rows);
+        }
+        
+        // عرض نتائج الاستيراد
+        function showResults(data) {
+            // إخفاء المعاينة وإظهار النتائج
+            $('#previewContainer').hide();
+            $('#resultsContainer').show();
+            
+            // عرض عدد السجلات الناجحة
+            $('#successCount').text('تم استيراد ' + data.success_count + ' سجل بنجاح.');
+            
+            // عرض الأخطاء إن وجدت
+            if (data.errors && data.errors.length > 0) {
+                $('#errorCount').text('فشل استيراد ' + data.errors.length + ' سجل.');
+                
+                var errorsHtml = '';
+                data.errors.forEach(function(error) {
+                    errorsHtml += '<tr><td>' + error.row + '</td><td>' + error.error + '</td></tr>';
+                });
+                $('#errorsBody').html(errorsHtml);
+                
+                $('#errorsAlert').show();
+            } else {
+                $('#errorsAlert').hide();
+            }
+        }
+        
+        // إعادة تعيين النموذج
+        function resetForm() {
+            $('#uploadForm')[0].reset();
+            $('#previewContainer').hide();
+            $('#resultsContainer').hide();
+        }
+        
+        // إظهار مؤشر التحميل
+        function showLoading() {
+            // يمكن إضافة مؤشر تحميل هنا
+            $('button').prop('disabled', true);
+        }
+        
+        // إخفاء مؤشر التحميل
+        function hideLoading() {
+            $('button').prop('disabled', false);
+        }
+        
+        // عرض رسالة خطأ
+        function showError(message) {
+            $('#errorAlert').removeClass('d-none').html('<i class="fas fa-exclamation-triangle me-2"></i>' + message);
+            // التمرير إلى رسالة الخطأ
+            $('html, body').animate({
+                scrollTop: $('#errorAlert').offset().top - 100
+            }, 200);
+        }
+    });
+</script>
+{% endblock %}

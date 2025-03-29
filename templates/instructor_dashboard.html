@@ -1,0 +1,1158 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="sidebar-toggle">
+    <i class="fas fa-bars"></i>
+</div>
+
+<div class="sidebar">
+    <div class="p-3">
+        <h4 class="text-center mb-4">لوحة التحكم</h4>
+        <div class="text-center mb-4">
+            <i class="fas fa-user-tie fa-3x mb-2"></i>
+            <h5>{{ current_user.name }}</h5>
+            <p class="text-white">تدريسي</p>
+        </div>
+        <hr>
+        <h6 class="sidebar-heading px-3 mt-4 mb-2 text-white">المراحل الدراسية</h6>
+        <ul class="nav flex-column" id="stageNav">
+            {% for stage in stages %}
+            <li class="nav-item">
+                <a class="nav-link {% if loop.first %}active{% endif %}" href="#" data-stage="{{ stage }}" data-bs-toggle="collapse" data-bs-target="#semesterLinks{{ stage }}">
+                    <i class="fas fa-graduation-cap me-2"></i>
+                    المرحلة {{ stage }}
+                    <i class="fas fa-chevron-down float-start stage-toggle-icon"></i>
+                </a>
+                <div class="collapse {% if loop.first %}show{% endif %} ms-4 semester-links" id="semesterLinks{{ stage }}">
+                    <a class="nav-link semester-link active" href="#" data-stage="{{ stage }}" data-semester="1">
+                        <i class="fas fa-book me-2"></i>
+                        الكورس الأول
+                    </a>
+                    <a class="nav-link semester-link" href="#" data-stage="{{ stage }}" data-semester="2">
+                        <i class="fas fa-book me-2"></i>
+                        الكورس الثاني
+                    </a>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+        <hr>
+        <div class="mt-5">
+            <a href="{{ url_for('instructor_reports') }}" class="btn btn-info w-100 mb-3">
+                <i class="fas fa-chart-bar me-2"></i>
+                التقارير
+            </a>
+            <a href="{{ url_for('data_parser') }}" class="btn btn-primary w-100 mb-3">
+                <i class="fas fa-file-excel me-2"></i>
+                استيراد البيانات
+            </a>
+            <a href="{{ url_for('student_modifications') }}" class="btn btn-success w-100 mb-3">
+                <i class="fas fa-user-edit me-2"></i>
+                التعديلات
+            </a>
+            <a href="{{ url_for('logout') }}" class="btn btn-danger w-100">
+                <i class="fas fa-sign-out-alt me-2"></i>
+                تسجيل الخروج
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="content">
+    <div class="container-fluid">
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <h2 class="stage-title fade-in" id="stageTitle">المرحلة 1 - الكورس الأول</h2>
+            </div>
+            <div class="col-md-6">
+                <div class="d-flex justify-content-end">
+                    <div class="search-box fade-in me-2">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="searchInput" placeholder="البحث عن طالب...">
+                            <button class="btn btn-primary" id="searchBtn">
+                                <i class="fas fa-search"></i>
+                                بحث
+                            </button>
+                        </div>
+                    </div>
+                    <!-- إضافة أزرار التصدير -->
+                    <button class="btn btn-success ms-2" id="exportExcelBtn">
+                        <i class="fas fa-file-excel me-1"></i>
+                        تصدير Excel
+                    </button>
+                    <button class="btn btn-danger ms-2" id="exportPdfBtn">
+                        <i class="fas fa-file-pdf me-1"></i>
+                        تصدير PDF
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="studentsContainer" class="slide-in">
+            <!-- Students data will be loaded here -->
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">جاري التحميل...</span>
+                </div>
+                <p class="mt-2">جاري تحميل بيانات الطلاب...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- نموذج عرض درجات الطالب -->
+<div class="modal fade" id="viewGradesModal" tabindex="-1" aria-labelledby="viewGradesModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="viewGradesModalLabel">عرض درجات الطالب</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+            </div>
+            <div class="modal-body">
+                <h5 id="studentNameInModal"></h5>
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>الرقم</th>
+                            <th>اسم المادة</th>
+                            <th>المحاولة الأولى</th>
+                            <th>المحاولة الثانية</th>
+                            <th>الدرجة النهائية</th>
+                        </tr>
+                    </thead>
+                    <tbody id="gradesTableBody">
+                    </tbody>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إغلاق</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Custom styles */
+    .bg-purple {
+        background-color: #7A288A; /* لون بنفسجي غامق للامتياز */
+        color: white;
+    }
+    
+    .stat-card {
+        border-radius: 8px;
+        overflow: hidden;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    
+    .stat-card-body {
+        padding: 15px;
+        text-align: center;
+    }
+    
+    .stat-card-title {
+        margin-bottom: 10px;
+        font-size: 1rem;
+    }
+    
+    .stat-card-value {
+        font-size: 1.5rem;
+        font-weight: bold;
+        margin-bottom: 0;
+    }
+    
+    .grade-input {
+        width: 70px;
+    }
+    
+    @media print {
+        .no-print {
+            display: none !important;
+        }
+        
+        .print-only {
+            display: block !important;
+        }
+        
+        .container-fluid {
+            width: 100%;
+            padding: 0;
+        }
+        
+        body {
+            font-size: 12pt;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // تعريف المتغيرات عالمياً
+    var currentStage = 1;
+    var currentSemester = 1;
+    
+    $(document).ready(function() {
+        // Load students for the first stage and semester on page load
+        loadStudents();
+        
+        // Handle stage navigation
+        $('#stageNav .nav-link').click(function(e) {
+            e.preventDefault();
+            
+            // Update active state
+            $('#stageNav .nav-link').removeClass('active');
+            $(this).addClass('active');
+            
+            // Rotate the chevron icon
+            $(this).find('.stage-toggle-icon').toggleClass('rotate-icon');
+            
+            // Get the selected stage
+            currentStage = $(this).data('stage');
+            
+            // Reset semester to 1 when changing stage
+            currentSemester = 1;
+            
+            // Update active semester link
+            $('.semester-link').removeClass('active');
+            $(`.semester-link[data-stage="${currentStage}"][data-semester="1"]`).addClass('active');
+            
+            // Update title
+            updateTitle();
+            
+            // Load students for the selected stage and semester
+            loadStudents();
+        });
+        
+        // Handle semester navigation
+        $(document).on('click', '.semester-link', function(e) {
+            e.preventDefault();
+            
+            // Update active state
+            $('.semester-link').removeClass('active');
+            $(this).addClass('active');
+            
+            // Get the selected stage and semester
+            currentStage = $(this).data('stage');
+            currentSemester = $(this).data('semester');
+            
+            // Update title
+            updateTitle();
+            
+            // Load students for the selected stage and semester
+            loadStudents();
+        });
+        
+        // Handle search
+        $('#searchBtn').click(function() {
+            searchStudents();
+        });
+        
+        // Handle search on Enter key
+        $('#searchInput').keypress(function(e) {
+            if (e.which === 13) {
+                searchStudents();
+            }
+        });
+        
+        // Function to update the title
+        function updateTitle() {
+            $('#stageTitle').text(`المرحلة ${currentStage} - الكورس ${currentSemester}`);
+        }
+        
+        // Function to load students
+        function loadStudents() {
+            // إلغاء أي طلب بحث حالي
+            if (window.currentSearchRequest) {
+                window.currentSearchRequest.abort();
+                window.currentSearchRequest = null;
+            }
+            
+            // إعادة تعيين حقل البحث عند تغيير المرحلة أو الكورس
+            $('#searchInput').val('');
+            
+            $('#studentsContainer').html(`
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">جاري التحميل...</span>
+                    </div>
+                    <p class="mt-2">جاري تحميل بيانات الطلاب...</p>
+                </div>
+            `);
+            
+            // إضافة متغير لتتبع الطلب الحالي
+            if (window.currentLoadRequest) {
+                window.currentLoadRequest.abort();
+            }
+            
+            // إضافة متغير لتتبع عدد محاولات إعادة الاتصال
+            window.retryCount = window.retryCount || 0;
+            const maxRetries = 3;
+            
+            function performRequest() {
+                window.currentLoadRequest = $.ajax({
+                    url: '{{ url_for("get_students_by_stage_semester") }}',
+                    method: 'POST',
+                    data: {
+                        stage: currentStage,
+                        semester: currentSemester
+                    },
+                    success: function(data) {
+                        // إعادة تعيين عداد المحاولات عند النجاح
+                        window.retryCount = 0;
+                        displayStudents(data);
+                        window.currentLoadRequest = null;
+                        
+                        // تحديث الإحصائيات
+                        updateStatistics(data);
+                        
+                        // عرض إشعار نجاح
+                        showToast('تم التحميل بنجاح', 'تم تحميل بيانات الطلاب بنجاح', 'success');
+                    },
+                    error: function(xhr, status, error) {
+                        // تجاهل الأخطاء إذا تم إلغاء الطلب
+                        if (status === 'abort') {
+                            window.currentLoadRequest = null;
+                            return;
+                        }
+                        
+                        // محاولة إعادة الاتصال
+                        if (window.retryCount < maxRetries) {
+                            window.retryCount++;
+                            
+                            // عرض رسالة إعادة المحاولة
+                            $('#studentsContainer').html(`
+                                <div class="text-center py-5">
+                                    <div class="spinner-border text-warning" role="status">
+                                        <span class="visually-hidden">جاري إعادة المحاولة...</span>
+                                    </div>
+                                    <p class="mt-2">فشل الاتصال. جاري إعادة المحاولة (${window.retryCount}/${maxRetries})...</p>
+                                </div>
+                            `);
+                            
+                            // إعادة المحاولة بعد تأخير
+                            setTimeout(performRequest, 2000);
+                        } else {
+                            // إظهار رسالة الخطأ بعد استنفاد جميع المحاولات
+                            $('#studentsContainer').html(`
+                                <div class="alert alert-danger">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    فشل تحميل البيانات بعد عدة محاولات. يرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى.
+                                </div>
+                                <button class="btn btn-primary mt-3" id="retryButton">
+                                    <i class="fas fa-sync-alt me-2"></i>
+                                    إعادة المحاولة
+                                </button>
+                            `);
+                            
+                            // إضافة حدث لزر إعادة المحاولة
+                            $('#retryButton').click(function() {
+                                window.retryCount = 0;
+                                loadStudents();
+                            });
+                            
+                            console.error('Error loading students:', xhr.responseText);
+                            showToast('خطأ في التحميل', 'فشل تحميل بيانات الطلاب', 'error');
+                        }
+                        
+                        window.currentLoadRequest = null;
+                    }
+                });
+            }
+            
+            // بدء الطلب
+            performRequest();
+        }
+        
+        // Function to search for a student
+        function searchStudents() {
+            const searchTerm = $('#searchInput').val().trim();
+            
+            if (searchTerm === '') {
+                // If search term is empty, load all students
+                loadStudents();
+                return;
+            }
+            
+            // عرض رسالة التحميل
+            $('#studentsContainer').html(`
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">جاري البحث...</span>
+                    </div>
+                    <p class="mt-2">جاري البحث عن "${searchTerm}"...</p>
+                </div>
+            `);
+            
+            // إضافة متغير لتتبع الطلب الحالي
+            if (window.currentSearchRequest) {
+                window.currentSearchRequest.abort();
+            }
+            
+            window.currentSearchRequest = $.ajax({
+                url: '{{ url_for("search_student") }}',
+                method: 'POST',
+                data: {
+                    search_term: searchTerm,
+                    stage: currentStage,
+                    semester: currentSemester
+                },
+                success: function(data) {
+                    // التحقق من أن نتائج البحث تتوافق مع المرحلة والكورس الحاليين
+                    const requestData = this.data;
+                    const requestStage = parseInt(requestData.split('&')[1].split('=')[1]);
+                    const requestSemester = parseInt(requestData.split('&')[2].split('=')[1]);
+                    
+                    if (requestStage === currentStage && requestSemester === currentSemester) {
+                        if (data.length === 0) {
+                            $('#studentsContainer').html(`
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-exclamation-circle me-2"></i>
+                                    لم يتم العثور على نتائج للبحث عن "${searchTerm}".
+                                </div>
+                            `);
+                        } else {
+                            displayStudents(data);
+                        }
+                    }
+                    window.currentSearchRequest = null;
+                },
+                error: function(xhr, status) {
+                    // تجاهل الأخطاء إذا تم إلغاء الطلب
+                    if (status !== 'abort') {
+                        $('#studentsContainer').html(`
+                            <div class="alert alert-danger">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                حدث خطأ أثناء البحث. يرجى المحاولة مرة أخرى.
+                            </div>
+                        `);
+                        console.error('Error searching student:', xhr.responseText);
+                    }
+                    window.currentSearchRequest = null;
+                }
+            });
+        }
+        
+        // Function to display students
+        function displayStudents(students) {
+            if (students.length === 0) {
+                $('#studentsContainer').html(`
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        لا يوجد طلاب في هذه المرحلة والكورس.
+                    </div>
+                `);
+                return;
+            }
+            
+            let html = `
+                <div class="d-flex justify-content-end mb-3">
+                    <button id="printBtn" class="btn btn-secondary me-2">
+                        <i class="fas fa-print me-2"></i>
+                        طباعة
+                    </button>
+                </div>
+                
+                <div id="studentsDataTable">
+            `;
+            
+            students.forEach(function(student, index) {
+                html += `
+                    <div class="card grade-table mb-4">
+                        <div class="card-header bg-light">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-user-graduate me-2"></i>
+                                    ${student.name} - ${student.student_id}
+                                </h5>
+                                <span class="badge bg-primary">${index + 1}</span>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>المادة</th>
+                                            <th>السعي</th>
+                                            <th>الامتحان النهائي</th>
+                                            <th>درجة القرار</th>
+                                            <th>الوحدات</th>
+                                            <th>المجموع</th>
+                                            <th>التقدير</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                `;
+                
+                student.grades.forEach(function(grade) {
+                    html += `
+                        <tr>
+                            <td>${grade.course_name}</td>
+                            <td>
+                                <input type="number" class="form-control form-control-sm grade-input" 
+                                    data-grade-id="${grade.grade_id}" 
+                                    data-field="coursework" 
+                                    min="0" max="50" 
+                                    value="${grade.coursework}">
+                            </td>
+                            <td>
+                                <input type="number" class="form-control form-control-sm grade-input" 
+                                    data-grade-id="${grade.grade_id}" 
+                                    data-field="final_exam" 
+                                    min="0" max="50" 
+                                    value="${grade.final_exam}">
+                            </td>
+                            <td>
+                                <input type="number" class="form-control form-control-sm grade-input" 
+                                    data-grade-id="${grade.grade_id}" 
+                                    data-field="decision_marks" 
+                                    min="0" max="10" 
+                                    value="${grade.decision_marks}">
+                            </td>
+                            <td>${grade.units}</td>
+                            <td class="total-grade-${grade.grade_id}">${grade.total}</td>
+                            <td class="evaluation-${grade.grade_id}">
+                                <span class="badge ${
+                                    grade.total < 50 ? 'bg-danger' : 
+                                    grade.total < 60 ? 'bg-warning text-dark' : 
+                                    grade.total < 70 ? 'bg-info text-dark' : 
+                                    grade.total < 80 ? 'bg-primary' : 
+                                    grade.total < 90 ? 'bg-success' : 
+                                    'bg-purple'
+                                }">
+                                    ${grade.evaluation}
+                                </span>
+                            </td>
+                        </tr>
+                    `;
+                });
+                
+                // Calculate summary
+                const totalGrades = student.grades.reduce((sum, grade) => sum + grade.total, 0);
+                const passedCourses = student.grades.filter(grade => grade.total >= 50).length;
+                const failedCourses = student.grades.length - passedCourses;
+                const averageGrade = totalGrades / student.grades.length;
+                
+                let overallEvaluation = '';
+                if (averageGrade < 50) {
+                    overallEvaluation = 'ضعيف';
+                } else if (averageGrade < 60) {
+                    overallEvaluation = 'مقبول';
+                } else if (averageGrade < 70) {
+                    overallEvaluation = 'متوسط';
+                } else if (averageGrade < 80) {
+                    overallEvaluation = 'جيد';
+                } else if (averageGrade < 90) {
+                    overallEvaluation = 'جيد جدا';
+                } else {
+                    overallEvaluation = 'امتياز';
+                }
+                
+                html += `
+                                    </tbody>
+                                </table>
+                            </div>
+                            
+                            <div class="summary-box mt-3">
+                                <h6 class="mb-3">ملخص الدرجات للكورس</h6>
+                                <div class="row">
+                                    <div class="col-md-3">
+                                        <p><strong>الدرجة النهائية للكورس:</strong> <span class="badge bg-primary">${student.semester_gpa}</span></p>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <p><strong>المواد الناجحة:</strong> <span class="badge bg-success">${passedCourses}</span></p>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <p><strong>المواد الراسبة:</strong> <span class="badge bg-danger">${failedCourses}</span></p>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <p><strong>التقدير:</strong> <span class="badge ${
+                                            averageGrade < 50 ? 'bg-danger' : 
+                                            averageGrade < 60 ? 'bg-warning text-dark' : 
+                                            averageGrade < 70 ? 'bg-info text-dark' : 
+                                            averageGrade < 80 ? 'bg-primary' : 
+                                            averageGrade < 90 ? 'bg-success' : 
+                                            'bg-purple'
+                                        }">
+                                            ${overallEvaluation}
+                                        </span></p>
+                                    </div>
+                                </div>
+                                
+                                ${currentSemester == 2 && student.stage_gpa !== null ? `
+                                <div class="mt-3 pt-3 border-top">
+                                    <h6 class="mb-3">المعدل النهائي للمرحلة ${currentStage}</h6>
+                                    <div class="row">
+                                        <div class="col-md-12">
+                                            <p><strong>المعدل النهائي للمرحلة:</strong> 
+                                                <span class="badge ${
+                                                    student.stage_gpa < 50 ? 'bg-danger' : 
+                                                    student.stage_gpa < 60 ? 'bg-warning text-dark' : 
+                                                    student.stage_gpa < 70 ? 'bg-info text-dark' : 
+                                                    student.stage_gpa < 80 ? 'bg-primary' : 
+                                                    student.stage_gpa < 90 ? 'bg-success' : 
+                                                    'bg-purple'
+                                                }">
+                                                    ${student.stage_gpa.toFixed(4)}
+                                                </span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += `
+                </div>
+            `;
+            
+            $('#studentsContainer').html(html);
+            
+            // إضافة حدث للطباعة
+            $('#printBtn').click(function() {
+                window.print();
+            });
+            
+            // Handle grade input changes
+            $('.grade-input').change(function() {
+                const gradeId = $(this).data('grade-id');
+                const field = $(this).data('field');
+                const value = $(this).val();
+                
+                // Validate input
+                if (value < 0 || (field === 'decision_marks' && value > 10) || (field !== 'decision_marks' && value > 50)) {
+                    showToast('خطأ في الإدخال', 'الرجاء إدخال قيمة صحيحة ضمن النطاق المسموح به.', 'error');
+                    return;
+                }
+                
+                // Get all grade values
+                const coursework = $(`input[data-grade-id="${gradeId}"][data-field="coursework"]`).val();
+                const finalExam = $(`input[data-grade-id="${gradeId}"][data-field="final_exam"]`).val();
+                const decisionMarks = $(`input[data-grade-id="${gradeId}"][data-field="decision_marks"]`).val();
+                
+                // Update grade
+                $.ajax({
+                    url: '{{ url_for("update_grade") }}',
+                    method: 'POST',
+                    data: {
+                        grade_id: gradeId,
+                        coursework: coursework,
+                        final_exam: finalExam,
+                        decision_marks: decisionMarks
+                    },
+                    success: function(data) {
+                        if (data.success) {
+                            // Update total and evaluation
+                            $(`.total-grade-${gradeId}`).text(data.total);
+                            
+                            // تحديث شارة التقييم
+                            const evaluationBadge = `
+                                <span class="badge ${
+                                    data.total < 50 ? 'bg-danger' : 
+                                    data.total < 60 ? 'bg-warning text-dark' : 
+                                    data.total < 70 ? 'bg-info text-dark' : 
+                                    data.total < 80 ? 'bg-primary' : 
+                                    data.total < 90 ? 'bg-success' : 
+                                    'bg-purple'
+                                }">
+                                    ${data.evaluation}
+                                </span>
+                            `;
+                            $(`.evaluation-${gradeId}`).html(evaluationBadge);
+                            
+                            // إعادة تحميل البيانات لتحديث الإحصائيات
+                            loadStudents();
+                            
+                            // عرض إشعار نجاح
+                            showToast('تم التحديث', 'تم تحديث الدرجة بنجاح.', 'success');
+                        }
+                    },
+                    error: function(xhr) {
+                        console.error('Error updating grade:', xhr.responseText);
+                        showToast('خطأ في التحديث', 'حدث خطأ أثناء تحديث الدرجة. يرجى المحاولة مرة أخرى.', 'error');
+                    }
+                });
+            });
+        }
+    });
+</script>
+
+<!-- إضافة وظائف جديدة -->
+<script>
+    // وظيفة لعرض إشعارات توست
+    function showToast(title, message, type = 'success') {
+        // تحديد لون الخلفية حسب النوع
+        let bgColor = 'bg-success';
+        let icon = 'fas fa-check-circle';
+        
+        if (type === 'error') {
+            bgColor = 'bg-danger';
+            icon = 'fas fa-exclamation-circle';
+        } else if (type === 'warning') {
+            bgColor = 'bg-warning text-dark';
+            icon = 'fas fa-exclamation-triangle';
+        } else if (type === 'info') {
+            bgColor = 'bg-info text-dark';
+            icon = 'fas fa-info-circle';
+        }
+        
+        // إنشاء التوست
+        const toast = `
+            <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 5">
+                <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true">
+                    <div class="toast-header ${bgColor} text-white">
+                        <i class="${icon} me-2"></i>
+                        <strong class="me-auto">${title}</strong>
+                        <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                    <div class="toast-body">
+                        ${message}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // إزالة التوست الموجود
+        $('.toast').parent().remove();
+        
+        // إضافة التوست الجديد
+        $('body').append(toast);
+        
+        // إخفاء التوست تلقائيًا بعد 3 ثوانٍ
+        setTimeout(function() {
+            $('.toast').toast('hide');
+        }, 3000);
+    }
+    
+    // وظيفة لتحديث الإحصائيات وعرضها
+    function updateStatistics(students) {
+        if (!students || students.length === 0) {
+            return;
+        }
+        
+        // حساب الإحصائيات
+        const totalStudents = students.length;
+        let totalPassed = 0;
+        let totalFailed = 0;
+        let totalGrades = 0;
+        let totalCourses = 0;
+        
+        // مصفوفات لتخزين البيانات للرسوم البيانية
+        const gradeRanges = {
+            'ضعيف (أقل من 50)': 0,
+            'مقبول (50-59)': 0,
+            'متوسط (60-69)': 0,
+            'جيد (70-79)': 0,
+            'جيد جدا (80-89)': 0,
+            'امتياز (90-100)': 0
+        };
+        
+        // حساب الإحصائيات لكل طالب
+        students.forEach(student => {
+            let studentPassed = true;
+            
+            student.grades.forEach(grade => {
+                totalCourses++;
+                totalGrades += grade.total;
+                
+                // تصنيف الدرجات حسب النطاق
+                if (grade.total < 50) {
+                    gradeRanges['ضعيف (أقل من 50)']++;
+                    studentPassed = false;
+                } else if (grade.total < 60) {
+                    gradeRanges['مقبول (50-59)']++;
+                } else if (grade.total < 70) {
+                    gradeRanges['متوسط (60-69)']++;
+                } else if (grade.total < 80) {
+                    gradeRanges['جيد (70-79)']++;
+                } else if (grade.total < 90) {
+                    gradeRanges['جيد جدا (80-89)']++;
+                } else {
+                    gradeRanges['امتياز (90-100)']++;
+                }
+            });
+            
+            // تحديث عدد الطلاب الناجحين والراسبين
+            if (studentPassed) {
+                totalPassed++;
+            } else {
+                totalFailed++;
+            }
+        });
+        
+        // حساب متوسط الدرجات
+        const averageGrade = totalGrades / totalCourses;
+        
+        // إنشاء قسم الإحصائيات
+        const statisticsHTML = `
+            <div class="statistics-section mb-4">
+                <h3 class="mb-3">
+                    <i class="fas fa-chart-bar me-2"></i>
+                    إحصائيات الطلاب
+                </h3>
+                
+                <div class="row">
+                    <!-- بطاقات الإحصائيات -->
+                    <div class="col-md-3">
+                        <div class="stat-card bg-primary">
+                            <div class="stat-card-body">
+                                <h5 class="stat-card-title text-white">إجمالي الطلاب</h5>
+                                <p class="stat-card-value text-white">${totalStudents}</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-3">
+                        <div class="stat-card bg-success">
+                            <div class="stat-card-body">
+                                <h5 class="stat-card-title text-white">الطلاب الناجحين</h5>
+                                <p class="stat-card-value text-white">${totalPassed}</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-3">
+                        <div class="stat-card bg-danger">
+                            <div class="stat-card-body">
+                                <h5 class="stat-card-title text-white">الطلاب الراسبين</h5>
+                                <p class="stat-card-value text-white">${totalFailed}</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-3">
+                        <div class="stat-card bg-info">
+                            <div class="stat-card-body">
+                                <h5 class="stat-card-title text-white">متوسط الدرجات</h5>
+                                <p class="stat-card-value text-white">${averageGrade.toFixed(2)}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row mt-4">
+                    <!-- الرسوم البيانية -->
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header bg-light">
+                                <h5 class="mb-0">توزيع الدرجات</h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="gradesDistributionChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header bg-light">
+                                <h5 class="mb-0">نسبة النجاح والرسوب</h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="passFailChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <div class="d-flex justify-content-end">
+                            <button id="exportPdfBtn" class="btn btn-danger me-2">
+                                <i class="fas fa-file-pdf me-2"></i>
+                                تصدير PDF
+                            </button>
+                            <button id="exportExcelBtn" class="btn btn-success">
+                                <i class="fas fa-file-excel me-2"></i>
+                                تصدير Excel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // إضافة قسم الإحصائيات قبل قسم الطلاب
+        if ($('.statistics-section').length) {
+            $('.statistics-section').remove();
+        }
+        $('#studentsContainer').before(statisticsHTML);
+        
+        // إنشاء الرسم البياني لتوزيع الدرجات
+        const gradesCtx = document.getElementById('gradesDistributionChart').getContext('2d');
+        if (window.gradesChart && typeof window.gradesChart.destroy === 'function') {
+            window.gradesChart.destroy();
+        }
+        window.gradesChart = new Chart(gradesCtx, {
+            type: 'bar',
+            data: {
+                labels: Object.keys(gradeRanges),
+                datasets: [{
+                    label: 'عدد الدرجات',
+                    data: Object.values(gradeRanges),
+                    backgroundColor: [
+                        'rgba(220, 53, 69, 0.7)',   // ضعيف
+                        'rgba(255, 193, 7, 0.7)',   // مقبول
+                        'rgba(23, 162, 184, 0.7)',  // متوسط
+                        'rgba(0, 123, 255, 0.7)',   // جيد
+                        'rgba(40, 167, 69, 0.7)',   // جيد جدا
+                        'rgba(122, 40, 138, 0.7)'   // امتياز
+                    ],
+                    borderColor: [
+                        'rgb(220, 53, 69)',
+                        'rgb(255, 193, 7)',
+                        'rgb(23, 162, 184)',
+                        'rgb(0, 123, 255)',
+                        'rgb(40, 167, 69)',
+                        'rgb(122, 40, 138)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                }
+            }
+        });
+        
+        // إنشاء الرسم البياني لنسبة النجاح والرسوب
+        const passFailCtx = document.getElementById('passFailChart').getContext('2d');
+        if (window.passFailChart && typeof window.passFailChart.destroy === 'function') {
+            window.passFailChart.destroy();
+        }
+        window.passFailChart = new Chart(passFailCtx, {
+            type: 'pie',
+            data: {
+                labels: ['ناجح', 'راسب'],
+                datasets: [{
+                    data: [totalPassed, totalFailed],
+                    backgroundColor: [
+                        'rgba(40, 167, 69, 0.7)',
+                        'rgba(220, 53, 69, 0.7)'
+                    ],
+                    borderColor: [
+                        'rgb(40, 167, 69)',
+                        'rgb(220, 53, 69)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+        
+        // إضافة وظائف التصدير
+        setupExportFunctions(students);
+    }
+    
+    // وظيفة لإعداد أزرار التصدير
+    function setupExportFunctions(students) {
+        // تصدير إلى Excel
+        $('#exportExcelBtn').off('click').on('click', function() {
+            // الحصول على بيانات الطلاب الحالية
+            $.ajax({
+                url: '/get_students_by_stage_semester',
+                type: 'POST',
+                data: {
+                    stage: currentStage,
+                    semester: currentSemester
+                },
+                success: function(response) {
+                    if (response.students && response.students.length > 0) {
+                        exportToExcel(response.students);
+                    } else {
+                        showToast('خطأ', 'لا توجد بيانات للتصدير', 'error');
+                    }
+                },
+                error: function() {
+                    showToast('خطأ', 'حدث خطأ أثناء استرجاع البيانات', 'error');
+                }
+            });
+        });
+        
+        // تصدير إلى PDF
+        $('#exportPdfBtn').off('click').on('click', function() {
+            exportToPDF();
+        });
+    }
+    
+    // وظيفة تصدير البيانات إلى Excel
+    function exportToExcel(students) {
+        try {
+            console.log("بدء تصدير Excel:", students);
+            
+            // التحقق من وجود البيانات
+            if (!students || students.length === 0) {
+                showToast('خطأ', 'لا توجد بيانات للتصدير', 'error');
+                return;
+            }
+            
+            // التحقق من وجود مكتبة XLSX
+            if (typeof XLSX === 'undefined') {
+                console.error("مكتبة XLSX غير معرفة");
+                showToast('خطأ', 'لم يتم تحميل مكتبة تصدير Excel بشكل صحيح', 'error');
+                return;
+            }
+            
+            showToast('جاري التصدير', 'يتم الآن تصدير البيانات إلى Excel، يرجى الانتظار...', 'info');
+            
+            // إنشاء مصفوفة البيانات
+            const data = [];
+            
+            // إضافة صف العناوين
+            data.push([
+                'الرقم',
+                'اسم الطالب',
+                'الرقم الجامعي',
+                'المرحلة',
+                'المادة',
+                'السعي',
+                'الامتحان النهائي',
+                'درجة القرار',
+                'المجموع',
+                'التقدير',
+                'الحالة'
+            ]);
+            
+            // إضافة بيانات الطلاب
+            let index = 1;
+            students.forEach(student => {
+                if (student.grades && Array.isArray(student.grades)) {
+                    student.grades.forEach(grade => {
+                        data.push([
+                            index,
+                            student.name,
+                            student.student_id,
+                            currentStage,
+                            grade.course_name,
+                            grade.coursework,
+                            grade.final_exam,
+                            grade.decision_marks,
+                            grade.total,
+                            grade.evaluation,
+                            grade.total >= 50 ? 'ناجح' : 'راسب'
+                        ]);
+                        index++;
+                    });
+                }
+            });
+            
+            console.log("تم إعداد البيانات للتصدير:", data.length);
+            
+            // إنشاء ورقة عمل
+            const ws = XLSX.utils.aoa_to_sheet(data);
+            
+            // إنشاء مصنف
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, `المرحلة ${currentStage} - الكورس ${currentSemester}`);
+            
+            // تصدير المصنف
+            XLSX.writeFile(wb, `بيانات_الطلاب_المرحلة${currentStage}_الكورس${currentSemester}.xlsx`);
+            
+            console.log("تم تصدير Excel بنجاح");
+            
+            // عرض إشعار نجاح
+            showToast('تم التصدير بنجاح', 'تم تصدير البيانات إلى ملف Excel بنجاح', 'success');
+        } catch (error) {
+            console.error("خطأ في تصدير Excel:", error);
+            showToast('خطأ', 'حدث خطأ أثناء تصدير البيانات: ' + error.message, 'error');
+        }
+    }
+    
+    // وظيفة تصدير البيانات إلى PDF
+    function exportToPDF() {
+        try {
+            console.log("بدء تصدير PDF");
+            
+            // تحديد العنصر المراد تصديره
+            const element = document.getElementById('studentsContainer');
+            
+            // التحقق من وجود العنصر ومحتواه
+            if (!element || element.innerHTML.trim() === '' || $(element).find('.student-row').length === 0) {
+                showToast('خطأ', 'لا توجد بيانات للتصدير', 'error');
+                return;
+            }
+            
+            // التحقق من وجود مكتبة html2pdf
+            if (typeof html2pdf === 'undefined') {
+                console.error("مكتبة html2pdf غير معرفة");
+                showToast('خطأ', 'لم يتم تحميل مكتبة تصدير PDF بشكل صحيح', 'error');
+                return;
+            }
+            
+            showToast('جاري التصدير', 'يتم الآن تصدير البيانات إلى PDF، يرجى الانتظار...', 'info');
+            
+            // إنشاء نسخة من العنصر للتصدير
+            const clonedElement = element.cloneNode(true);
+            
+            // إزالة الأزرار وعناصر التحكم غير المطلوبة من النسخة
+            $(clonedElement).find('button, input, .no-print').remove();
+            
+            // إضافة عنوان للمستند
+            const header = document.createElement('div');
+            header.innerHTML = `
+                <div style="text-align: center; margin-bottom: 20px; direction: rtl;">
+                    <h2>بيانات طلاب المرحلة ${currentStage} - الكورس ${currentSemester}</h2>
+                    <p>تاريخ التصدير: ${new Date().toLocaleDateString('ar-IQ')}</p>
+                </div>
+            `;
+            clonedElement.prepend(header);
+            
+            console.log("تم إعداد عنصر PDF للتصدير");
+            
+            // خيارات التصدير
+            const options = {
+                margin: 10,
+                filename: `بيانات_الطلاب_المرحلة${currentStage}_الكورس${currentSemester}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true, logging: true },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+            };
+            
+            // تصدير العنصر إلى PDF
+            html2pdf()
+                .from(clonedElement)
+                .set(options)
+                .save()
+                .then(() => {
+                    console.log("تم تصدير PDF بنجاح");
+                    // عرض إشعار نجاح
+                    showToast('تم التصدير بنجاح', 'تم تصدير البيانات إلى ملف PDF بنجاح', 'success');
+                })
+                .catch(error => {
+                    console.error("خطأ في تصدير PDF:", error);
+                    showToast('خطأ', 'حدث خطأ أثناء تصدير البيانات: ' + error.message, 'error');
+                });
+        } catch (error) {
+            console.error("خطأ في تصدير PDF:", error);
+            showToast('خطأ', 'حدث خطأ أثناء تصدير البيانات: ' + error.message, 'error');
+        }
+    }
+</script>
+{% endblock %}

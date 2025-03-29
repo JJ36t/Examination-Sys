@@ -1,0 +1,108 @@
+2025-03-22 03:06:18,391 - werkzeug - WARNING -  * Debugger is active!
+2025-03-22 03:06:18,395 - werkzeug - INFO -  * Debugger PIN: 944-885-511
+2025-03-22 03:07:04,055 - werkzeug - INFO -  * Detected change in 'c:\\Users\\Õ„ \\Desktop\\‰”Œ «·„‘—Ê⁄\\p\\app.py', reloading
+2025-03-22 03:07:07,113 - werkzeug - WARNING -  * Debugger is active!
+2025-03-22 03:07:07,118 - werkzeug - INFO -  * Debugger PIN: 944-885-511
+2025-03-22 03:07:26,641 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:07:26] "GET /instructor/dashboard HTTP/1.1" 200 -
+2025-03-22 03:07:26,860 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:07:26] "GET /static/css/custom.css HTTP/1.1" 200 -
+2025-03-22 03:07:27,066 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:07:27] "POST /get_students_by_stage_semester HTTP/1.1" 200 -
+2025-03-22 03:07:30,374 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:07:30] "GET /data_parser HTTP/1.1" 200 -
+2025-03-22 03:07:30,420 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:07:30] "[36mGET /static/css/custom.css HTTP/1.1[0m" 304 -
+2025-03-22 03:07:35,905 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:07:35] "GET /data_parser?table_type=students&file=university_data_with_formula.xlsx HTTP/1.1" 200 -
+2025-03-22 03:07:35,980 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:07:35] "[36mGET /static/css/custom.css HTTP/1.1[0m" 304 -
+2025-03-22 03:07:37,868 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:07:37] "GET /instructor/dashboard HTTP/1.1" 200 -
+2025-03-22 03:07:37,925 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:07:37] "[36mGET /static/css/custom.css HTTP/1.1[0m" 304 -
+2025-03-22 03:07:38,146 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:07:38] "POST /get_students_by_stage_semester HTTP/1.1" 200 -
+2025-03-22 03:08:24,659 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-03-22 03:08:24,659 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-03-22 03:08:24,662 - werkzeug - INFO -  * Restarting with stat
+2025-03-22 03:08:26,506 - werkzeug - WARNING -  * Debugger is active!
+2025-03-22 03:08:26,509 - werkzeug - INFO -  * Debugger PIN: 944-885-511
+2025-03-22 03:09:25,555 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:09:25] "GET /instructor/dashboard HTTP/1.1" 200 -
+2025-03-22 03:09:25,633 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:09:25] "[36mGET /static/css/custom.css HTTP/1.1[0m" 304 -
+2025-03-22 03:09:25,822 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:09:25] "POST /get_students_by_stage_semester HTTP/1.1" 200 -
+2025-03-22 03:10:02,021 - werkzeug - INFO -  * Detected change in 'c:\\Users\\Õ„ \\Desktop\\‰”Œ «·„‘—Ê⁄\\p\\app.py', reloading
+2025-03-22 03:10:02,273 - werkzeug - INFO -  * Detected change in 'C:\\Users\\Õ„ \\Desktop\\‰”Œ «·„‘—Ê⁄\\p\\app.py', reloading
+2025-03-22 03:10:02,934 - werkzeug - INFO -  * Restarting with stat
+2025-03-22 03:10:06,865 - werkzeug - WARNING -  * Debugger is active!
+2025-03-22 03:10:06,870 - werkzeug - INFO -  * Debugger PIN: 944-885-511
+2025-03-22 03:10:07,022 - werkzeug - WARNING -  * Debugger is active!
+2025-03-22 03:10:07,026 - werkzeug - INFO -  * Debugger PIN: 944-885-511
+2025-03-22 03:10:29,496 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-03-22 03:10:29,496 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-03-22 03:10:29,499 - werkzeug - INFO -  * Restarting with stat
+2025-03-22 03:10:31,337 - werkzeug - WARNING -  * Debugger is active!
+2025-03-22 03:10:31,340 - werkzeug - INFO -  * Debugger PIN: 944-885-511
+2025-03-22 03:11:22,154 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:11:22] "GET /instructor/dashboard HTTP/1.1" 200 -
+2025-03-22 03:11:22,376 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:11:22] "GET /static/css/custom.css HTTP/1.1" 200 -
+2025-03-22 03:11:22,853 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:11:22] "POST /get_students_by_stage_semester HTTP/1.1" 200 -
+2025-03-22 03:11:38,568 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:11:38] "GET /data_parser HTTP/1.1" 200 -
+2025-03-22 03:11:38,631 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:11:38] "[36mGET /static/css/custom.css HTTP/1.1[0m" 304 -
+2025-03-22 03:11:44,764 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:11:44] "GET /data_parser?table_type=students&file=university_data_with_formula.xlsx HTTP/1.1" 200 -
+2025-03-22 03:11:44,811 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:11:44] "[36mGET /static/css/custom.css HTTP/1.1[0m" 304 -
+2025-03-22 03:11:50,261 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:11:50] "GET /data_parser?table_type=students&file=university_system.xlsx HTTP/1.1" 200 -
+2025-03-22 03:11:50,315 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:11:50] "[36mGET /static/css/custom.css HTTP/1.1[0m" 304 -
+2025-03-22 03:11:53,798 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:11:53] "GET /instructor/dashboard HTTP/1.1" 200 -
+2025-03-22 03:11:53,881 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:11:53] "[36mGET /static/css/custom.css HTTP/1.1[0m" 304 -
+2025-03-22 03:11:54,028 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:11:54] "GET /instructor/dashboard HTTP/1.1" 200 -
+2025-03-22 03:11:54,079 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:11:54] "[36mGET /static/css/custom.css HTTP/1.1[0m" 304 -
+2025-03-22 03:11:54,422 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:11:54] "POST /get_students_by_stage_semester HTTP/1.1" 200 -
+2025-03-22 03:11:54,489 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:11:54] "POST /get_students_by_stage_semester HTTP/1.1" 200 -
+2025-03-22 03:12:07,873 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:12:07] "POST /get_students_by_stage_semester HTTP/1.1" 200 -
+2025-03-22 03:13:45,330 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:13:45] "GET /data_parser HTTP/1.1" 200 -
+2025-03-22 03:13:45,367 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:13:45] "[36mGET /static/css/custom.css HTTP/1.1[0m" 304 -
+2025-03-22 03:13:52,144 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:13:52] "GET /data_parser?table_type=students&file=university_system.xlsx HTTP/1.1" 200 -
+2025-03-22 03:13:52,199 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:13:52] "[36mGET /static/css/custom.css HTTP/1.1[0m" 304 -
+2025-03-22 03:14:00,195 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:14:00] "GET /instructor/dashboard HTTP/1.1" 200 -
+2025-03-22 03:14:00,245 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:14:00] "[36mGET /static/css/custom.css HTTP/1.1[0m" 304 -
+2025-03-22 03:14:00,512 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:14:00] "POST /get_students_by_stage_semester HTTP/1.1" 200 -
+2025-03-22 03:14:03,096 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:14:03] "POST /get_students_by_stage_semester HTTP/1.1" 200 -
+2025-03-22 03:14:24,412 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:14:24] "POST /search_student HTTP/1.1" 200 -
+2025-03-22 03:14:49,399 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:14:49] "POST /update_grade HTTP/1.1" 200 -
+2025-03-22 03:14:51,077 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:14:51] "POST /update_grade HTTP/1.1" 200 -
+2025-03-22 03:14:52,097 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:14:52] "POST /update_grade HTTP/1.1" 200 -
+2025-03-22 03:15:00,082 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:15:00] "POST /get_students_by_stage_semester HTTP/1.1" 200 -
+2025-03-22 03:16:36,903 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:16:36] "[32mGET /logout HTTP/1.1[0m" 302 -
+2025-03-22 03:16:36,947 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:16:36] "GET /login HTTP/1.1" 200 -
+2025-03-22 03:16:37,005 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:16:37] "[36mGET /static/css/custom.css HTTP/1.1[0m" 304 -
+2025-03-22 03:16:49,991 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:16:49] "[32mPOST /login HTTP/1.1[0m" 302 -
+2025-03-22 03:16:50,148 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:16:50] "GET /student/dashboard HTTP/1.1" 200 -
+2025-03-22 03:16:50,177 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 03:16:50] "[36mGET /static/css/custom.css HTTP/1.1[0m" 304 -
+2025-03-22 04:50:25,300 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 04:50:25] "GET /student/dashboard HTTP/1.1" 200 -
+2025-03-22 04:50:25,324 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 04:50:25] "[36mGET /static/css/custom.css HTTP/1.1[0m" 304 -
+2025-03-22 04:51:25,497 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 04:51:25] "GET /student/dashboard HTTP/1.1" 200 -
+2025-03-22 04:51:25,525 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 04:51:25] "[36mGET /static/css/custom.css HTTP/1.1[0m" 304 -
+2025-03-22 04:52:25,444 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 04:52:25] "GET /student/dashboard HTTP/1.1" 200 -
+2025-03-22 04:52:25,473 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 04:52:25] "[36mGET /static/css/custom.css HTTP/1.1[0m" 304 -
+2025-03-22 04:53:25,454 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 04:53:25] "GET /student/dashboard HTTP/1.1" 200 -
+2025-03-22 04:53:25,494 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 04:53:25] "[36mGET /static/css/custom.css HTTP/1.1[0m" 304 -
+2025-03-22 04:54:25,464 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 04:54:25] "GET /student/dashboard HTTP/1.1" 200 -
+2025-03-22 04:54:25,492 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 04:54:25] "[36mGET /static/css/custom.css HTTP/1.1[0m" 304 -
+2025-03-22 04:55:19,914 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 04:55:19] "GET /student/dashboard HTTP/1.1" 200 -
+2025-03-22 04:55:19,943 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 04:55:19] "[36mGET /static/css/custom.css HTTP/1.1[0m" 304 -
+2025-03-22 04:55:23,243 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 04:55:23] "[32mGET /data_parser HTTP/1.1[0m" 302 -
+2025-03-22 04:55:23,259 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 04:55:23] "GET /login HTTP/1.1" 200 -
+2025-03-22 04:55:23,309 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 04:55:23] "[36mGET /static/css/custom.css HTTP/1.1[0m" 304 -
+2025-03-22 04:55:28,923 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 04:55:28] "[32mPOST /login HTTP/1.1[0m" 302 -
+2025-03-22 04:55:28,934 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 04:55:28] "GET /instructor/dashboard HTTP/1.1" 200 -
+2025-03-22 04:55:28,973 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 04:55:28] "[36mGET /static/css/custom.css HTTP/1.1[0m" 304 -
+2025-03-22 04:55:29,270 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 04:55:29] "POST /get_students_by_stage_semester HTTP/1.1" 200 -
+2025-03-22 04:55:33,166 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 04:55:33] "GET /data_parser HTTP/1.1" 200 -
+2025-03-22 04:55:33,210 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 04:55:33] "[36mGET /static/css/custom.css HTTP/1.1[0m" 304 -
+2025-03-22 04:55:51,568 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 04:55:51] "GET /instructor/reports HTTP/1.1" 200 -
+2025-03-22 04:55:51,605 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 04:55:51] "[36mGET /static/css/custom.css HTTP/1.1[0m" 304 -
+2025-03-22 04:55:51,702 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 04:55:51] "POST /get_courses HTTP/1.1" 200 -
+2025-03-22 04:55:51,942 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 04:55:51] "POST /get_filtered_students HTTP/1.1" 200 -
+2025-03-22 04:56:00,153 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 04:56:00] "GET /instructor/modifications HTTP/1.1" 200 -
+2025-03-22 04:56:00,198 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 04:56:00] "[36mGET /static/css/custom.css HTTP/1.1[0m" 304 -
+2025-03-22 04:56:05,160 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 04:56:05] "GET /get_all_students_for_modification HTTP/1.1" 200 -
+2025-03-22 04:56:20,568 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 04:56:20] "GET /instructor/dashboard HTTP/1.1" 200 -
+2025-03-22 04:56:20,611 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 04:56:20] "[36mGET /static/css/custom.css HTTP/1.1[0m" 304 -
+2025-03-22 04:56:20,898 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 04:56:20] "POST /get_students_by_stage_semester HTTP/1.1" 200 -
+2025-03-22 04:58:02,577 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 04:58:02] "[32mGET /student/dashboard HTTP/1.1[0m" 302 -
+2025-03-22 04:58:02,610 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 04:58:02] "GET /login HTTP/1.1" 200 -
+2025-03-22 04:58:02,651 - werkzeug - INFO - 127.0.0.1 - - [22/Mar/2025 04:58:02] "[36mGET /static/css/custom.css HTTP/1.1[0m" 304 -
+2025-03-22 04:58:13,319 - werkzeug - INFO -  * Detected change in 'C:\\Users\\Õ„ \\Desktop\\‰”Œ «·„‘—Ê⁄\\p\\app.py', reloading
+2025-03-22 04:58:13,699 - werkzeug - INFO -  * Restarting with stat
