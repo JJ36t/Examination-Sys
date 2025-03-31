@@ -277,62 +277,38 @@
             // تطبيق حالة الشريط الجانبي عند التحميل
             applySidebarState();
             
-            // التبديل بين إظهار وإخفاء الشريط الجانبي
+            // تحسين السايدبار للأجهزة المحمولة
             $('.sidebar-toggle').on('click', function(e) {
                 e.preventDefault();
+                $('.sidebar').toggleClass('active');
+                $('body').toggleClass('sidebar-visible');
+                $('.sidebar-toggle i').toggleClass('fa-bars fa-times');
                 
-                if ($(window).width() <= 992) {
-                    // سلوك الشريط الجانبي على الهواتف
-                    $('.sidebar').toggleClass('active');
-                    $('body').toggleClass('sidebar-visible');
-                    $('.sidebar-toggle i').toggleClass('fa-bars fa-times');
-                    
-                    if ($('.sidebar').hasClass('active')) {
-                        $('.sidebar-backdrop').fadeIn(300);
-                        
-                        // منع التمرير في الصفحة عند فتح السايدبار على الهاتف
-                        $('body').css('overflow', 'hidden');
-                    } else {
-                        $('.sidebar-backdrop').fadeOut(300);
-                        
-                        // إعادة التمرير عند إغلاق السايدبار
-                        $('body').css('overflow', '');
-                    }
+                if ($('.sidebar').hasClass('active')) {
+                    $('.sidebar-backdrop').fadeIn(300);
+                    $('body').css('overflow', 'hidden');
                 } else {
-                    // سلوك الشريط الجانبي على الأجهزة الكبيرة
-                    if ($('.content').hasClass('full-width')) {
-                        $('.content').removeClass('full-width');
-                        $('.sidebar').animate({right: '0'}, 300);
-                        $('body').removeClass('sidebar-hidden');
-                        $('.sidebar-toggle i').removeClass('fa-bars').addClass('fa-times');
-                        localStorage.setItem('sidebarState', 'visible');
-                    } else {
-                        $('.content').addClass('full-width');
-                        $('.sidebar').animate({right: '-280px'}, 300);
-                        $('body').addClass('sidebar-hidden');
-                        $('.sidebar-toggle i').removeClass('fa-times').addClass('fa-bars');
-                        localStorage.setItem('sidebarState', 'hidden');
-                    }
+                    $('.sidebar-backdrop').fadeOut(300);
+                    $('body').css('overflow', '');
                 }
             });
-            
+
             // إغلاق الشريط الجانبي عند النقر على الخلفية
             $('.sidebar-backdrop').on('click', function() {
                 $('.sidebar').removeClass('active');
                 $('body').removeClass('sidebar-visible');
                 $('.sidebar-toggle i').removeClass('fa-times').addClass('fa-bars');
                 $(this).fadeOut(300);
-                
-                // إعادة التمرير عند إغلاق السايدبار
                 $('body').css('overflow', '');
             });
-            
+
             // إعادة تعيين حالة الشريط الجانبي عند تغيير حجم النافذة
             $(window).resize(function() {
-                applySidebarState();
-                
-                // إعادة التمرير عند تغيير حجم النافذة
                 if ($(window).width() > 992) {
+                    $('.sidebar').removeClass('active');
+                    $('body').removeClass('sidebar-visible');
+                    $('.sidebar-toggle i').removeClass('fa-times').addClass('fa-bars');
+                    $('.sidebar-backdrop').fadeOut(300);
                     $('body').css('overflow', '');
                 }
             });

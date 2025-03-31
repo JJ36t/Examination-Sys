@@ -7,23 +7,56 @@
         font-size: 14px;
     }
 
-    /* تعديلات القائمة الجانبية للأجهزة المحمولة */
+    /* تحسين تصميم السايدبار للأجهزة المحمولة */
     .sidebar {
         position: fixed;
         right: -100%;
         top: 0;
         height: 100%;
-        width: 85%;
-        max-width: 280px;
-        z-index: 9999;
+        width: 80%;
+        max-width: 300px;
+        background: #2d3436;
+        color: white;
+        z-index: 1000;
         padding-top: 60px;
-        transition: all 0.3s ease;
+        transition: right 0.3s ease;
         overflow-y: auto;
-        box-shadow: -5px 0 15px rgba(0, 0, 0, 0.2);
+        box-shadow: -5px 0 15px rgba(0, 0, 0, 0.4);
     }
 
     .sidebar.active {
         right: 0;
+    }
+
+    .sidebar .nav-link {
+        padding: 15px 20px;
+        font-size: 1rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .sidebar .nav-link:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .sidebar-toggle {
+        display: flex;
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        z-index: 1001;
+        background-color: #6c5ce7;
+        color: white;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 10px rgba(108, 92, 231, 0.3);
+        transition: transform 0.3s ease;
+    }
+
+    .sidebar-toggle:hover {
+        transform: scale(1.1);
     }
 
     .sidebar-backdrop {
@@ -37,18 +70,14 @@
         display: none;
     }
 
-    .content {
-        margin-right: 0 !important;
-        width: 100%;
-        padding: 15px;
+    .sidebar-visible .sidebar-backdrop {
+        display: block;
     }
 
-    .sidebar-toggle {
-        display: flex !important;
-        position: fixed;
-        top: 10px;
-        right: 10px;
-        z-index: 10000;
+    .content {
+        margin-right: 0;
+        padding: 20px;
+        transition: margin-right 0.3s ease;
     }
 
     /* تحسين العناصر الأخرى للأجهزة المحمولة */
@@ -102,6 +131,16 @@
         height: 250px !important;
         margin-bottom: 15px;
     }
+}
+
+/* تحسين الأيقونات والتفاعل */
+.sidebar-toggle i {
+    font-size: 1.2rem;
+    transition: transform 0.3s ease;
+}
+
+.sidebar-hidden .sidebar-toggle i {
+    transform: rotate(180deg);
 }
 
 /* إعدادات خاصة للهواتف الصغيرة */
