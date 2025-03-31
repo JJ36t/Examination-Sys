@@ -189,12 +189,12 @@ def login():
                 # زيادة عدد المحاولات الفاشلة
                 user.failed_login_attempts += 1
                 
-                # إذا تجاوز عدد المحاولات الفاشلة 10، قم بقفل الحساب
-                if user.failed_login_attempts >= 10:
+                # إذا تجاوز عدد المحاولات الفاشلة 5، قم بقفل الحساب
+                if user.failed_login_attempts >= 5:
                     user.is_locked = True
                     flash('تم قفل الحساب بسبب كثرة محاولات تسجيل الدخول الفاشلة. يرجى التواصل مع الإدارة.', 'danger')
                 else:
-                    attempts_left = 10 - user.failed_login_attempts
+                    attempts_left = 5 - user.failed_login_attempts
                     flash(f'خطأ في اسم المستخدم أو كلمة المرور أو نوع المستخدم. محاولات متبقية: {attempts_left}', 'danger')
                 
                 db.session.commit()
