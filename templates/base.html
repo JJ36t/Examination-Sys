@@ -176,13 +176,18 @@
                 position: fixed;
                 right: -280px;
                 top: 0;
-                height: 100vh;
-                z-index: 1000;
-                transition: right 0.4s ease-in-out;
+                height: 100%;
+                z-index: 9999;
+                transition: all 0.4s ease-in-out;
                 width: 280px;
+                overflow-y: auto;
+                padding-top: 60px;
+                background: linear-gradient(180deg, #2d3436, #373b3e);
+                display: block !important;
             }
             .sidebar.active {
                 right: 0;
+                box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
             }
             .content {
                 margin-right: 0;
@@ -191,15 +196,30 @@
             .sidebar-toggle {
                 display: flex;
                 right: 15px;
-                transition: right 0.4s ease-in-out;
+                z-index: 10000;
+                position: fixed;
+                transition: all 0.4s ease-in-out;
             }
             body.sidebar-visible .sidebar-toggle {
-                right: 295px;
+                right: 220px;
             }
             
             /* لضمان أن الشريط الجانبي يظهر فوق المحتوى على الأجهزة الصغيرة */
             .sidebar.active + .content {
                 overflow-x: hidden;
+            }
+            
+            /* تعديل حجم المحتوى داخل الشريط الجانبي على الهواتف */
+            .sidebar .p-3 {
+                padding: 1rem !important;
+            }
+            
+            .sidebar h4 {
+                font-size: 1.2rem;
+            }
+            
+            .sidebar h5 {
+                font-size: 1rem;
             }
         }
         
@@ -238,40 +258,16 @@
             // استعادة حالة الشريط الجانبي من التخزين المحلي
             var sidebarState = localStorage.getItem('sidebarState');
             
-            // التحقق من حالة الجهاز وتطبيق الأنماط المناسبة
-            function applySidebarState() {
-                // تعيين الحالة الافتراضية للهواتف
-                if ($(window).width() <= 992) {
-                    // في الهواتف، الحالة الافتراضية هي الإخفاء
-                    $('.sidebar').removeClass('active');
-                    $('body').removeClass('sidebar-visible');
-                    localStorage.setItem('sidebarState', 'hidden');
-                } else {
-                    // الأجهزة الكبيرة
-                    if (sidebarState === 'hidden') {
-                        $('.content').addClass('full-width');
-                        $('.sidebar').css('right', '-280px');
-                        $('body').addClass('sidebar-hidden');
-                    } else {
-                        $('.content').removeClass('full-width');
-                        $('.sidebar').css('right', '0');
-                        $('body').removeClass('sidebar-hidden');
-                    }
-                }
-            }
-            
-            // تطبيق حالة الشريط الجانبي عند التحميل
-            applySidebarState();
-            
-            // التبديل بين إظهار وإخفاء الشريط الجانبي
-            $('.sidebar-toggle').on('click', function() {
-                if ($(window).width() <= 992) {
-                    // للأجهزة الصغيرة
+            // معالجة مشكلة زر الإغلاق عند الضغط
+            function toggleSidebar() {
+                var isMobile = $(window).width() <= 992;
+                
+                if (isMobile) {
                     $('.sidebar').toggleClass('active');
                     $('body').toggleClass('sidebar-visible');
                     
                     // تبديل الأيقونة
-                    $(this).find('i').toggleClass('fa-bars fa-times');
+                    $('.sidebar-toggle i').toggleClass('fa-bars fa-times');
                     
                     // تخزين الحالة
                     if ($('.sidebar').hasClass('active')) {
@@ -294,8 +290,46 @@
                     }
                     
                     // تبديل الأيقونة
-                    $(this).find('i').toggleClass('fa-bars fa-times');
+                    $('.sidebar-toggle i').toggleClass('fa-bars fa-times');
                 }
+            }
+            
+            // التحقق من حالة الجهاز وتطبيق الأنماط المناسبة
+            function applySidebarState() {
+                // تعيين الحالة الافتراضية للهواتف
+                if ($(window).width() <= 992) {
+                    // إعادة تعيين الشريط الجانبي للشكل الصحيح في الهواتف
+                    $('.sidebar').css('right', '-280px');
+                    $('.sidebar').removeClass('active');
+                    $('body').removeClass('sidebar-visible');
+                    $('.sidebar-toggle i').removeClass('fa-times').addClass('fa-bars');
+                    
+                    // للهواتف نخزن الحالة كمخفية افتراضيًا
+                    localStorage.setItem('sidebarState', 'hidden');
+                } else {
+                    // الأجهزة الكبيرة
+                    if (sidebarState === 'hidden') {
+                        $('.content').addClass('full-width');
+                        $('.sidebar').css('right', '-280px');
+                        $('body').addClass('sidebar-hidden');
+                        $('.sidebar-toggle i').removeClass('fa-times').addClass('fa-bars');
+                    } else {
+                        $('.content').removeClass('full-width');
+                        $('.sidebar').css('right', '0');
+                        $('body').removeClass('sidebar-hidden');
+                        $('.sidebar-toggle i').removeClass('fa-bars').addClass('fa-times');
+                    }
+                }
+            }
+            
+            // تطبيق حالة الشريط الجانبي عند التحميل
+            applySidebarState();
+            
+            // التبديل بين إظهار وإخفاء الشريط الجانبي
+            $('.sidebar-toggle').on('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                toggleSidebar();
             });
             
             // أضف مستمع للنقر خارج القائمة في الهواتف لإغلاق القائمة
@@ -306,7 +340,7 @@
                         !$(e.target).closest('.sidebar-toggle').length) {
                         $('.sidebar').removeClass('active');
                         $('body').removeClass('sidebar-visible');
-                        $('.sidebar-toggle').find('i').removeClass('fa-times').addClass('fa-bars');
+                        $('.sidebar-toggle i').removeClass('fa-times').addClass('fa-bars');
                         localStorage.setItem('sidebarState', 'hidden');
                     }
                 }
