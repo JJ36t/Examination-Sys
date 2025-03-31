@@ -1,5 +1,38 @@
 {% extends "base.html" %}
 
+{% block extra_css %}
+<style>
+    /* تصحيحات خاصة بصفحة الطالب للأجهزة المحمولة */
+    @media (max-width: 992px) {
+        .sidebar-toggle {
+            position: fixed !important;
+            z-index: 1001 !important;
+            display: flex !important;
+        }
+        
+        /* تأكيد لجعل السايدبار يظهر بشكل صحيح */
+        .sidebar.active {
+            right: 0 !important;
+            display: block !important;
+        }
+        
+        /* تحسين ظهور العناصر داخل السايدبار */
+        .sidebar .nav-link {
+            padding: 12px 15px !important;
+            margin-bottom: 5px !important;
+            border-radius: 5px !important;
+        }
+        
+        /* تأكيد على ان الايقونات تظهر بشكل صحيح */
+        .sidebar-toggle i.fa-bars,
+        .sidebar-toggle i.fa-times {
+            display: inline-block !important;
+            font-size: 1.2rem !important;
+        }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="sidebar-toggle" title="إخفاء/إظهار القائمة الجانبية">
     <i class="fas fa-bars"></i>
@@ -206,50 +239,56 @@
 
 {% block extra_js %}
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // إضافة المؤثرات البصرية والتفاعلية
-        const sidebarToggle = document.querySelector('.sidebar-toggle');
-        const sidebar = document.querySelector('.sidebar');
-        const content = document.querySelector('.content');
+    $(document).ready(function() {
+        // تعريف الأيقونات بشكل صريح
+        const menuIcon = '<i class="fas fa-bars"></i>';
+        const closeIcon = '<i class="fas fa-times"></i>';
         
-        sidebarToggle.addEventListener('click', function() {
-            sidebar.classList.toggle('active');
-            content.classList.toggle('expanded');
-        });
-        
-        // إظهار جميع المراحل في البداية
-        const stageContents = document.querySelectorAll('[id^="stage"]');
-        stageContents.forEach(content => {
-            content.style.display = 'block';
-        });
-        
-        // التبديل بين المراحل
-        const stageLinks = document.querySelectorAll('#stageNav .nav-link');
-        
-        stageLinks.forEach(link => {
-            link.addEventListener('click', function(e) {
-                e.preventDefault();
-                
-                // إزالة الفئة النشطة من جميع الروابط
-                stageLinks.forEach(l => l.classList.remove('active'));
-                
-                // إضافة الفئة النشطة إلى الرابط الحالي
-                this.classList.add('active');
-                
-                // الانتقال إلى القسم المطلوب
-                const targetId = this.getAttribute('href').substring(1);
-                const targetElement = document.getElementById(targetId);
-                window.scrollTo({
-                    top: targetElement.offsetTop - 20,
-                    behavior: 'smooth'
-                });
-            });
-        });
-        
-        // تنشيط الرابط الأول (المرحلة الحالية) افتراضيًا
-        if (stageLinks.length > 0) {
-            stageLinks[0].click();
+        // التأكد من وجود طبقة الخلفية
+        if ($('.sidebar-backdrop').length === 0) {
+            $('body').append('<div class="sidebar-backdrop"></div>');
         }
+        
+        // معالجة مباشرة للسايدبار في صفحة الطالب
+        $('.sidebar-toggle').off('click').on('click', function(e) {
+            e.preventDefault();
+            
+            if ($('.sidebar').hasClass('active')) {
+                // إغلاق السايدبار
+                $('.sidebar').removeClass('active');
+                $('body').removeClass('sidebar-visible');
+                $(this).html(menuIcon);
+                $('.sidebar-backdrop').fadeOut(300);
+                $('body').css('overflow', '');
+            } else {
+                // فتح السايدبار
+                $('.sidebar').addClass('active');
+                $('body').addClass('sidebar-visible');
+                $(this).html(closeIcon);
+                $('.sidebar-backdrop').fadeIn(300);
+                $('body').css('overflow', 'hidden');
+            }
+        });
+        
+        // معالجة النقر على الخلفية
+        $('.sidebar-backdrop').off('click').on('click', function() {
+            $('.sidebar').removeClass('active');
+            $('body').removeClass('sidebar-visible');
+            $('.sidebar-toggle').html(menuIcon);
+            $(this).fadeOut(300);
+            $('body').css('overflow', '');
+        });
+        
+        // إعادة تعيين حالة السايدبار عند تغيير حجم النافذة
+        $(window).resize(function() {
+            if ($(window).width() > 992) {
+                $('.sidebar').removeClass('active');
+                $('body').removeClass('sidebar-visible');
+                $('.sidebar-toggle').html(menuIcon);
+                $('.sidebar-backdrop').fadeOut(300);
+                $('body').css('overflow', '');
+            }
+        });
     });
 </script>
 {% endblock %}
