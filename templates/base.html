@@ -173,20 +173,33 @@
         /* Responsive design */
         @media (max-width: 992px) {
             .sidebar {
+                position: fixed;
                 right: -280px;
+                top: 0;
+                height: 100vh;
+                z-index: 1000;
+                transition: right 0.4s ease-in-out;
+                width: 280px;
             }
             .sidebar.active {
                 right: 0;
             }
             .content {
                 margin-right: 0;
+                width: 100%;
             }
             .sidebar-toggle {
                 display: flex;
                 right: 15px;
+                transition: right 0.4s ease-in-out;
             }
             body.sidebar-visible .sidebar-toggle {
                 right: 295px;
+            }
+            
+            /* لضمان أن الشريط الجانبي يظهر فوق المحتوى على الأجهزة الصغيرة */
+            .sidebar.active + .content {
+                overflow-x: hidden;
             }
         }
         
@@ -227,15 +240,12 @@
             
             // التحقق من حالة الجهاز وتطبيق الأنماط المناسبة
             function applySidebarState() {
+                // تعيين الحالة الافتراضية للهواتف
                 if ($(window).width() <= 992) {
-                    // الأجهزة الصغيرة
-                    if (sidebarState === 'hidden') {
-                        $('.sidebar').removeClass('active');
-                        $('body').removeClass('sidebar-visible');
-                    } else {
-                        $('.sidebar').addClass('active');
-                        $('body').addClass('sidebar-visible');
-                    }
+                    // في الهواتف، الحالة الافتراضية هي الإخفاء
+                    $('.sidebar').removeClass('active');
+                    $('body').removeClass('sidebar-visible');
+                    localStorage.setItem('sidebarState', 'hidden');
                 } else {
                     // الأجهزة الكبيرة
                     if (sidebarState === 'hidden') {
@@ -254,12 +264,16 @@
             applySidebarState();
             
             // التبديل بين إظهار وإخفاء الشريط الجانبي
-            $('.sidebar-toggle').click(function() {
+            $('.sidebar-toggle').on('click', function() {
                 if ($(window).width() <= 992) {
                     // للأجهزة الصغيرة
                     $('.sidebar').toggleClass('active');
                     $('body').toggleClass('sidebar-visible');
                     
+                    // تبديل الأيقونة
+                    $(this).find('i').toggleClass('fa-bars fa-times');
+                    
+                    // تخزين الحالة
                     if ($('.sidebar').hasClass('active')) {
                         localStorage.setItem('sidebarState', 'visible');
                     } else {
@@ -278,10 +292,24 @@
                         $('body').addClass('sidebar-hidden');
                         localStorage.setItem('sidebarState', 'hidden');
                     }
+                    
+                    // تبديل الأيقونة
+                    $(this).find('i').toggleClass('fa-bars fa-times');
                 }
-                
-                // تغيير أيقونة الزر
-                $(this).find('i').toggleClass('fa-bars fa-times');
+            });
+            
+            // أضف مستمع للنقر خارج القائمة في الهواتف لإغلاق القائمة
+            $(document).on('click', function(e) {
+                if ($(window).width() <= 992 && $('.sidebar').hasClass('active')) {
+                    // تحقق مما إذا كان النقر خارج القائمة وليس على زر التبديل
+                    if (!$(e.target).closest('.sidebar').length && 
+                        !$(e.target).closest('.sidebar-toggle').length) {
+                        $('.sidebar').removeClass('active');
+                        $('body').removeClass('sidebar-visible');
+                        $('.sidebar-toggle').find('i').removeClass('fa-times').addClass('fa-bars');
+                        localStorage.setItem('sidebarState', 'hidden');
+                    }
+                }
             });
             
             // إعادة تعيين حالة الشريط الجانبي عند تغيير حجم النافذة
