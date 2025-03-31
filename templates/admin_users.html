@@ -283,10 +283,9 @@ function displayUsers(users) {
                 <button class="btn btn-sm btn-danger" onclick="prepareDeleteUser(${user.id}, '${user.name}')">
                     <i class="fas fa-trash"></i> حذف
                 </button>
-                ${user.is_locked || user.failed_login_attempts > 0 ? 
-                 `<button class="btn btn-sm btn-warning" onclick="resetUserAttempts(${user.id})">
-                    <i class="fas fa-unlock"></i> إعادة تعيين
-                  </button>` : ''}
+                <button class="btn btn-sm btn-warning" onclick="resetUserAttempts(${user.id})">
+                    <i class="fas fa-unlock"></i> إلغاء قفل
+                </button>
             </td>
         `;
         tbody.appendChild(row);
