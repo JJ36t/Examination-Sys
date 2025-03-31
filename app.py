@@ -3020,7 +3020,7 @@ def admin_reset_user_attempts(user_id):
     db.session.commit()
     
     flash(f'تم إعادة تعيين محاولات تسجيل الدخول وإلغاء قفل حساب {user.username} بنجاح', 'success')
-    return redirect(url_for('admin_get_user_details', user_id=user_id))
+    return redirect(url_for('admin_users'))
 
 if __name__ == '__main__':
     init_db()
