@@ -1,0 +1,377 @@
+{% extends "admin_layout.html" %}
+
+{% block admin_content %}
+<div class="card shadow mb-4">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">إدارة الطلاب</h5>
+        <button type="button" class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#addStudentModal">
+            <i class="fas fa-plus"></i> إضافة طالب جديد
+        </button>
+    </div>
+    <div class="card-body">
+        <div class="row mb-3">
+            <div class="col-md-8">
+                <div class="input-group">
+                    <input type="text" id="searchStudent" class="form-control" placeholder="ابحث عن طالب...">
+                    <button class="btn btn-outline-secondary" type="button" id="searchStudentBtn">
+                        <i class="fas fa-search"></i> بحث
+                    </button>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <select id="stageFilter" class="form-select">
+                    <option value="">جميع المراحل</option>
+                    <option value="1">المرحلة الأولى</option>
+                    <option value="2">المرحلة الثانية</option>
+                    <option value="3">المرحلة الثالثة</option>
+                    <option value="4">المرحلة الرابعة</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover" id="studentsTable">
+                <thead class="table-light">
+                    <tr>
+                        <th>رقم</th>
+                        <th>الاسم</th>
+                        <th>رقم الطالب</th>
+                        <th>اسم المستخدم</th>
+                        <th>المرحلة</th>
+                        <th>الإجراءات</th>
+                    </tr>
+                </thead>
+                <tbody id="studentsTableBody">
+                    <!-- البيانات ستضاف هنا عبر JavaScript -->
+                </tbody>
+            </table>
+        </div>
+        
+        <div id="paginationContainer" class="d-flex justify-content-center mt-3">
+            <!-- أزرار التنقل بين الصفحات ستضاف هنا -->
+        </div>
+    </div>
+</div>
+
+<!-- نموذج إضافة طالب جديد -->
+<div class="modal fade" id="addStudentModal" tabindex="-1" aria-labelledby="addStudentModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addStudentModalLabel">إضافة طالب جديد</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addStudentForm">
+                    <div class="mb-3">
+                        <label for="studentName" class="form-label">اسم الطالب</label>
+                        <input type="text" class="form-control" id="studentName" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="studentUsername" class="form-label">اسم المستخدم</label>
+                        <input type="text" class="form-control" id="studentUsername" name="username" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="studentId" class="form-label">رقم الطالب</label>
+                        <input type="text" class="form-control" id="studentId" name="student_id" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="studentPassword" class="form-label">كلمة المرور</label>
+                        <input type="password" class="form-control" id="studentPassword" name="password" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="studentStage" class="form-label">المرحلة</label>
+                        <select class="form-select" id="studentStage" name="stage" required>
+                            <option value="1">المرحلة الأولى</option>
+                            <option value="2">المرحلة الثانية</option>
+                            <option value="3">المرحلة الثالثة</option>
+                            <option value="4">المرحلة الرابعة</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                <button type="button" class="btn btn-primary" id="saveStudentBtn">حفظ</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- نموذج تعديل بيانات الطالب -->
+<div class="modal fade" id="editStudentModal" tabindex="-1" aria-labelledby="editStudentModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editStudentModalLabel">تعديل بيانات الطالب</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editStudentForm">
+                    <input type="hidden" id="editStudentId" name="student_id">
+                    <input type="hidden" id="editUserId" name="user_id">
+                    <div class="mb-3">
+                        <label for="editStudentName" class="form-label">اسم الطالب</label>
+                        <input type="text" class="form-control" id="editStudentName" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editStudentUsername" class="form-label">اسم المستخدم</label>
+                        <input type="text" class="form-control" id="editStudentUsername" name="username" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editStudentIdNumber" class="form-label">رقم الطالب</label>
+                        <input type="text" class="form-control" id="editStudentIdNumber" name="student_id_number" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editStudentPassword" class="form-label">كلمة المرور (اتركها فارغة للاحتفاظ بالحالية)</label>
+                        <input type="password" class="form-control" id="editStudentPassword" name="password">
+                    </div>
+                    <div class="mb-3">
+                        <label for="editStudentStage" class="form-label">المرحلة</label>
+                        <select class="form-select" id="editStudentStage" name="stage" required>
+                            <option value="1">المرحلة الأولى</option>
+                            <option value="2">المرحلة الثانية</option>
+                            <option value="3">المرحلة الثالثة</option>
+                            <option value="4">المرحلة الرابعة</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                <button type="button" class="btn btn-primary" id="updateStudentBtn">تحديث</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- نموذج تأكيد الحذف -->
+<div class="modal fade" id="deleteStudentModal" tabindex="-1" aria-labelledby="deleteStudentModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteStudentModalLabel">تأكيد الحذف</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+            </div>
+            <div class="modal-body">
+                <p>هل أنت متأكد من رغبتك في حذف الطالب <span id="deleteStudentName"></span>؟</p>
+                <p class="text-danger">هذا الإجراء لا يمكن التراجع عنه وسيؤدي إلى حذف جميع بيانات الطالب بما في ذلك الدرجات.</p>
+                <input type="hidden" id="deleteStudentId">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">حذف</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // تحميل قائمة الطلاب عند تحميل الصفحة
+        loadStudents();
+        
+        // إضافة الأحداث للأزرار
+        document.getElementById('searchStudentBtn').addEventListener('click', searchStudents);
+        document.getElementById('stageFilter').addEventListener('change', searchStudents);
+        document.getElementById('saveStudentBtn').addEventListener('click', saveStudent);
+        document.getElementById('updateStudentBtn').addEventListener('click', updateStudent);
+        document.getElementById('confirmDeleteBtn').addEventListener('click', deleteStudent);
+        
+        // البحث عند الضغط على Enter في حقل البحث
+        document.getElementById('searchStudent').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchStudents();
+            }
+        });
+    });
+    
+    // دالة لتحميل قائمة الطلاب
+    function loadStudents() {
+        fetch('/get_all_students_for_modification')
+            .then(response => response.json())
+            .then(students => {
+                displayStudents(students);
+            })
+            .catch(error => {
+                console.error('Error loading students:', error);
+                alert('حدث خطأ أثناء تحميل بيانات الطلاب.');
+            });
+    }
+    
+    // دالة للبحث عن الطلاب
+    function searchStudents() {
+        const searchTerm = document.getElementById('searchStudent').value;
+        const stageFilter = document.getElementById('stageFilter').value;
+        
+        if (searchTerm.trim() === '' && stageFilter === '') {
+            loadStudents();
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('search_term', searchTerm);
+        
+        fetch('/search_student_for_modification', {
+            method: 'POST',
+            body: formData
+        })
+            .then(response => response.json())
+            .then(students => {
+                if (stageFilter !== '') {
+                    students = students.filter(student => student.stage == stageFilter);
+                }
+                displayStudents(students);
+            })
+            .catch(error => {
+                console.error('Error searching students:', error);
+                alert('حدث خطأ أثناء البحث عن الطلاب.');
+            });
+    }
+    
+    // دالة لعرض قائمة الطلاب في الجدول
+    function displayStudents(students) {
+        const tableBody = document.getElementById('studentsTableBody');
+        tableBody.innerHTML = '';
+        
+        if (students.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="6" class="text-center">لا توجد بيانات للعرض</td></tr>';
+            return;
+        }
+        
+        students.forEach((student, index) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${index + 1}</td>
+                <td>${student.name}</td>
+                <td>${student.student_id}</td>
+                <td>${student.username}</td>
+                <td>المرحلة ${student.stage}</td>
+                <td>
+                    <button class="btn btn-sm btn-primary edit-student" data-id="${student.id}" data-user-id="${student.user_id}" data-name="${student.name}" data-username="${student.username}" data-student-id="${student.student_id}" data-stage="${student.stage}">
+                        <i class="fas fa-edit"></i> تعديل
+                    </button>
+                    <button class="btn btn-sm btn-danger delete-student" data-id="${student.id}" data-name="${student.name}">
+                        <i class="fas fa-trash"></i> حذف
+                    </button>
+                    <a href="/admin/student_grades/${student.id}" class="btn btn-sm btn-info">
+                        <i class="fas fa-chart-bar"></i> الدرجات
+                    </a>
+                </td>
+            `;
+            tableBody.appendChild(row);
+        });
+        
+        // إضافة الأحداث لأزرار التعديل والحذف
+        document.querySelectorAll('.edit-student').forEach(button => {
+            button.addEventListener('click', function() {
+                const id = this.getAttribute('data-id');
+                const userId = this.getAttribute('data-user-id');
+                const name = this.getAttribute('data-name');
+                const username = this.getAttribute('data-username');
+                const studentId = this.getAttribute('data-student-id');
+                const stage = this.getAttribute('data-stage');
+                
+                document.getElementById('editStudentId').value = id;
+                document.getElementById('editUserId').value = userId;
+                document.getElementById('editStudentName').value = name;
+                document.getElementById('editStudentUsername').value = username;
+                document.getElementById('editStudentIdNumber').value = studentId;
+                document.getElementById('editStudentPassword').value = '';
+                document.getElementById('editStudentStage').value = stage;
+                
+                new bootstrap.Modal(document.getElementById('editStudentModal')).show();
+            });
+        });
+        
+        document.querySelectorAll('.delete-student').forEach(button => {
+            button.addEventListener('click', function() {
+                const id = this.getAttribute('data-id');
+                const name = this.getAttribute('data-name');
+                
+                document.getElementById('deleteStudentId').value = id;
+                document.getElementById('deleteStudentName').textContent = name;
+                
+                new bootstrap.Modal(document.getElementById('deleteStudentModal')).show();
+            });
+        });
+    }
+    
+    // دالة لحفظ طالب جديد
+    function saveStudent() {
+        const form = document.getElementById('addStudentForm');
+        const formData = new FormData(form);
+        
+        fetch('/add_student', {
+            method: 'POST',
+            body: formData
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('تم إضافة الطالب بنجاح');
+                    bootstrap.Modal.getInstance(document.getElementById('addStudentModal')).hide();
+                    form.reset();
+                    loadStudents();
+                } else {
+                    alert(`حدث خطأ: ${data.error}`);
+                }
+            })
+            .catch(error => {
+                console.error('Error adding student:', error);
+                alert('حدث خطأ أثناء إضافة الطالب.');
+            });
+    }
+    
+    // دالة لتحديث بيانات الطالب
+    function updateStudent() {
+        const form = document.getElementById('editStudentForm');
+        const formData = new FormData(form);
+        
+        fetch('/update_student', {
+            method: 'POST',
+            body: formData
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('تم تحديث بيانات الطالب بنجاح');
+                    bootstrap.Modal.getInstance(document.getElementById('editStudentModal')).hide();
+                    loadStudents();
+                } else {
+                    alert(`حدث خطأ: ${data.error}`);
+                }
+            })
+            .catch(error => {
+                console.error('Error updating student:', error);
+                alert('حدث خطأ أثناء تحديث بيانات الطالب.');
+            });
+    }
+    
+    // دالة لحذف الطالب
+    function deleteStudent() {
+        const studentId = document.getElementById('deleteStudentId').value;
+        const formData = new FormData();
+        formData.append('student_id', studentId);
+        
+        fetch('/delete_student', {
+            method: 'POST',
+            body: formData
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('تم حذف الطالب بنجاح');
+                    bootstrap.Modal.getInstance(document.getElementById('deleteStudentModal')).hide();
+                    loadStudents();
+                } else {
+                    alert(`حدث خطأ: ${data.error}`);
+                }
+            })
+            .catch(error => {
+                console.error('Error deleting student:', error);
+                alert('حدث خطأ أثناء حذف الطالب.');
+            });
+    }
+</script>
+{% endblock %}

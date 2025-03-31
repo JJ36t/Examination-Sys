@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}لوحة تحكم الإدارة{% endblock %} | نظام اللجان الامتحانية</title>
+    <!-- Bootstrap RTL -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <!-- DataTables -->
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css">
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+    <style>
+        body {
+            font-family: 'Tajawal', sans-serif;
+            background-color: #f5f7fa;
+            color: #495057;
+        }
+        
+        /* Sidebar Styles */
+        .sidebar {
+            min-height: 100vh;
+            background: linear-gradient(45deg, #2f3b52, #1e2a3e);
+            padding: 20px 0;
+            position: fixed;
+            top: 0;
+            right: 0; /* للموقع الصحيح في التصميم RTL */
+            width: 250px;
+            z-index: 100;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .sidebar .logo {
+            text-align: center;
+            padding: 15px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 15px;
+        }
+        
+        .sidebar .logo h3 {
+            color: #fff;
+            font-weight: 700;
+            font-size: 1.5rem;
+            margin: 0;
+        }
+        
+        .sidebar .logo span {
+            color: #4ba3e3;
+        }
+        
+        .sidebar a {
+            padding: 12px 20px;
+            color: rgba(255, 255, 255, 0.7);
+            display: flex;
+            align-items: center;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            border-right: 3px solid transparent;
+        }
+        
+        .sidebar a:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+            color: #fff;
+            border-right-color: #4ba3e3;
+        }
+        
+        .sidebar .active {
+            background-color: rgba(75, 163, 227, 0.2);
+            color: #fff;
+            border-right-color: #4ba3e3;
+        }
+        
+        .sidebar a i {
+            margin-left: 10px;
+            width: 20px;
+            text-align: center;
+        }
+        
+        .sidebar .nav-category {
+            color: rgba(255, 255, 255, 0.4);
+            padding: 10px 20px;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 15px;
+        }
+        
+        /* Main Content Styles */
+        .main-content {
+            padding: 20px;
+            margin-right: 250px; /* نفس عرض الشريط الجانبي */
+            transition: all 0.3s ease;
+            min-height: 100vh; /* مهم: للتأكد من امتداد المحتوى للأسفل */
+        }
+        
+        .admin-dashboard {
+            padding: 20px;
+        }
+        
+        @media (max-width: 992px) {
+            .sidebar {
+                width: 70px;
+                overflow: hidden;
+            }
+            
+            .sidebar .logo h3, .sidebar .nav-category, .sidebar a span {
+                display: none;
+            }
+            
+            .sidebar a i {
+                margin: 0;
+                font-size: 1.2rem;
+            }
+            
+            .main-content {
+                margin-right: 70px;
+            }
+        }
+        
+        /* Top Navbar */
+        .admin-header {
+            background-color: #fff;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .admin-header .user-info {
+            display: flex;
+            align-items: center;
+        }
+        
+        .admin-header .user-info .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: #4ba3e3;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        
+        /* Cards */
+        .card {
+            border: none;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            margin-bottom: 20px;
+            transition: transform 0.3s ease;
+            overflow: hidden; /* لمنع أي تجاوز للمحتوى */
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .card-header {
+            background-color: #fff;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+            padding: 15px 20px;
+            font-weight: 600;
+        }
+        
+        .card-body {
+            padding: 20px;
+        }
+        
+        /* Buttons */
+        .btn-primary {
+            background-color: #4ba3e3;
+            border-color: #4ba3e3;
+        }
+        
+        .btn-primary:hover {
+            background-color: #3b92d2;
+            border-color: #3b92d2;
+        }
+        
+        .btn-success {
+            background-color: #28c76f;
+            border-color: #28c76f;
+        }
+        
+        .btn-success:hover {
+            background-color: #24b263;
+            border-color: #24b263;
+        }
+        
+        /* Tables */
+        .table {
+            border-collapse: separate;
+            border-spacing: 0;
+            width: 100%;
+            margin-bottom: 0;
+        }
+        
+        .table-responsive {
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.05);
+        }
+        
+        .table thead th {
+            background-color: #f8f9fa;
+            border-bottom: none;
+            font-weight: 600;
+            color: #495057;
+            padding: 12px 15px;
+            vertical-align: middle;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        .table tbody tr {
+            transition: all 0.2s ease;
+        }
+        
+        .table tbody tr:hover {
+            background-color: rgba(75, 163, 227, 0.05);
+        }
+        
+        .table tbody td {
+            padding: 12px 15px;
+            vertical-align: middle;
+            border-color: #f1f1f1;
+        }
+        
+        /* Modals */
+        .modal-content {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+        }
+        
+        .modal-header {
+            border-bottom: 1px solid #f1f1f1;
+            padding: 15px 20px;
+        }
+        
+        .modal-body {
+            padding: 20px;
+        }
+        
+        .modal-footer {
+            border-top: 1px solid #f1f1f1;
+            padding: 15px 20px;
+        }
+        
+        /* Forms */
+        .form-control, .form-select {
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: 1px solid #e1e1e1;
+            transition: all 0.3s ease;
+        }
+        
+        .form-control:focus, .form-select:focus {
+            border-color: #4ba3e3;
+            box-shadow: 0 0 0 0.25rem rgba(75, 163, 227, 0.25);
+        }
+        
+        .input-group .form-control {
+            border-top-left-radius: 0;
+            border-bottom-left-radius: 0;
+        }
+        
+        .input-group .btn {
+            padding: 10px 15px;
+        }
+        
+        /* Alerts */
+        .alert {
+            border-radius: 8px;
+            border: none;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+        
+        /* Pagination */
+        .pagination {
+            justify-content: center;
+            margin-top: 20px;
+        }
+        
+        .pagination .page-item .page-link {
+            border: none;
+            color: #495057;
+            margin: 0 5px;
+            border-radius: 5px;
+            padding: 8px 16px;
+            transition: all 0.3s ease;
+        }
+        
+        .pagination .page-item.active .page-link,
+        .pagination .page-item .page-link:hover {
+            background-color: #4ba3e3;
+            color: #fff;
+        }
+        
+        /* DataTables Custom Styles */
+        .dataTables_wrapper .dataTables_length, 
+        .dataTables_wrapper .dataTables_filter, 
+        .dataTables_wrapper .dataTables_info, 
+        .dataTables_wrapper .dataTables_processing, 
+        .dataTables_wrapper .dataTables_paginate {
+            margin-bottom: 15px;
+        }
+        
+        .dataTables_wrapper .dataTables_paginate .paginate_button {
+            border: none !important;
+            margin: 0 5px;
+            border-radius: 5px;
+            padding: 5px 12px !important;
+        }
+        
+        .dataTables_wrapper .dataTables_paginate .paginate_button:hover {
+            background: #4ba3e3 !important;
+            color: #fff !important;
+        }
+        
+        .dataTables_wrapper .dataTables_paginate .paginate_button.current {
+            background: #4ba3e3 !important;
+            color: #fff !important;
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-auto sidebar">
+                <div class="logo">
+                    <h3>اللجان <span>الامتحانية</span></h3>
+                </div>
+                
+                <div class="admin-navigation">
+                    <p class="nav-category">لوحة التحكم</p>
+                    <a href="{{ url_for('admin_dashboard') }}" class="{% if request.path == url_for('admin_dashboard') %}active{% endif %}">
+                        <i class="fas fa-tachometer-alt"></i> الرئيسية
+                    </a>
+                    
+                    <p class="nav-category">إدارة البيانات</p>
+                    <a href="{{ url_for('admin_students') }}" class="{% if request.path == url_for('admin_students') %}active{% endif %}">
+                        <i class="fas fa-user-graduate"></i> الطلاب
+                    </a>
+                    <a href="{{ url_for('admin_courses') }}" class="{% if request.path == url_for('admin_courses') %}active{% endif %}">
+                        <i class="fas fa-book"></i> المقررات
+                    </a>
+                    <a href="{{ url_for('admin_grades') }}" class="{% if request.path == url_for('admin_grades') %}active{% endif %}">
+                        <i class="fas fa-graduation-cap"></i> الدرجات
+                    </a>
+                    <a href="{{ url_for('admin_users') }}" class="{% if request.path == url_for('admin_users') %}active{% endif %}">
+                        <i class="fas fa-users"></i> المستخدمين
+                    </a>
+                    
+                    <p class="nav-category">التقارير والإعدادات</p>
+                    <a href="{{ url_for('admin_reports') }}" class="{% if request.path == url_for('admin_reports') %}active{% endif %}">
+                        <i class="fas fa-chart-bar"></i> التقارير والإحصائيات
+                    </a>
+                    <a href="{{ url_for('admin_export_data') }}" class="{% if request.path == url_for('admin_export_data') %}active{% endif %}">
+                        <i class="fas fa-file-export"></i> تصدير البيانات
+                    </a>
+                    <a href="{{ url_for('admin_settings') }}" class="{% if request.path == url_for('admin_settings') %}active{% endif %}">
+                        <i class="fas fa-cog"></i> الإعدادات
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Main Content -->
+            <div class="main-content admin-dashboard">
+                <div class="admin-header d-flex justify-content-between align-items-center mb-4">
+                    <h2 class="page-title mb-0">{% block page_title %}لوحة تحكم الإدارة{% endblock %}</h2>
+                    <div class="user-info">
+                        <div class="dropdown">
+                            <a class="dropdown-toggle d-flex align-items-center text-decoration-none" href="#" role="button" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                <div class="user-avatar">
+                                    {{ current_user.name[0] | upper }}
+                                </div>
+                                <div class="ms-2">
+                                    <div>{{ current_user.name }}</div>
+                                    <div class="text-muted small">مدير النظام</div>
+                                </div>
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                                <li><a class="dropdown-item" href="{{ url_for('admin_settings') }}"><i class="fas fa-cog me-2"></i> الإعدادات</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item text-danger" href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt me-2"></i> تسجيل الخروج</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        <div class="row">
+                            <div class="col-12">
+                                {% for category, message in messages %}
+                                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                                        {{ message }}
+                                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="إغلاق"></button>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endif %}
+                {% endwith %}
+                
+                {% block admin_content %}{% endblock %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <script>
+        $(document).ready(function() {
+            // تهيئة DataTables
+            $('.datatable').DataTable({
+                language: {
+                    url: '//cdn.datatables.net/plug-ins/1.11.5/i18n/ar.json'
+                },
+                "lengthMenu": [[10, 25, 50, -1], [10, 25, 50, "الكل"]],
+                responsive: true
+            });
+            
+            // تفعيل tooltips
+            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+            var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl)
+            });
+        });
+    </script>
+    
+    <!-- سكريبت للحفاظ على المستخدم في نفس الصفحة عند الضغط على تحديث المتصفح -->
+    <script>
+        // تخزين الصفحة الحالية في تخزين المتصفح عند تحميل الصفحة
+        document.addEventListener('DOMContentLoaded', function() {
+            // حفظ المسار الحالي في localStorage
+            localStorage.setItem('lastPage', window.location.pathname);
+            
+            // إضافة مستمع لأحداث النقر على الروابط لتحديث الصفحة المخزنة
+            document.querySelectorAll('a').forEach(function(link) {
+                link.addEventListener('click', function() {
+                    if (this.href && !this.getAttribute('target')) {
+                        localStorage.setItem('lastPage', this.getAttribute('href'));
+                    }
+                });
+            });
+        });
+        
+        // حل مشكلة إعادة التوجيه عند تحديث الصفحة
+        window.addEventListener('pageshow', function(event) {
+            // التحقق من أن الصفحة تم تحميلها من التخزين المؤقت (عند الضغط على زر التحديث)
+            if (event.persisted) {
+                // استعادة الصفحة الأخيرة المخزنة
+                const lastPage = localStorage.getItem('lastPage');
+                // إذا كانت الصفحة الحالية ليست هي الصفحة المخزنة، قم بالتوجيه
+                if (lastPage && lastPage !== window.location.pathname) {
+                    window.location.href = lastPage;
+                }
+            }
+        });
+    </script>
+    
+    {% block scripts %}{% endblock %}
+</body>
+</html>

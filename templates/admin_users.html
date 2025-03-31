@@ -1,0 +1,425 @@
+{% extends "admin_layout.html" %}
+
+{% block admin_content %}
+<div class="card shadow mb-4">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">إدارة المستخدمين</h5>
+        <button type="button" class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#addUserModal">
+            <i class="fas fa-plus"></i> إضافة مستخدم جديد
+        </button>
+    </div>
+    <div class="card-body">
+        <div class="row mb-3">
+            <div class="col-md-8">
+                <div class="input-group">
+                    <input type="text" id="searchUser" class="form-control" placeholder="ابحث عن مستخدم...">
+                    <button class="btn btn-outline-secondary" type="button" id="searchUserBtn">
+                        <i class="fas fa-search"></i> بحث
+                    </button>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <select id="userTypeFilter" class="form-select">
+                    <option value="">كل المستخدمين</option>
+                    <option value="admin">المسؤولين</option>
+                    <option value="instructor">المدرسين</option>
+                    <option value="student">الطلاب</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover" id="usersTable">
+                <thead class="table-light">
+                    <tr>
+                        <th>رقم</th>
+                        <th>الاسم</th>
+                        <th>اسم المستخدم</th>
+                        <th>نوع المستخدم</th>
+                        <th>معلومات إضافية</th>
+                        <th>الإجراءات</th>
+                    </tr>
+                </thead>
+                <tbody id="usersTableBody">
+                    <!-- البيانات ستضاف هنا عبر JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- نموذج إضافة مستخدم جديد -->
+<div class="modal fade" id="addUserModal" tabindex="-1" aria-labelledby="addUserModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addUserModalLabel">إضافة مستخدم جديد</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addUserForm">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">الاسم</label>
+                        <input type="text" class="form-control" id="name" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="username" class="form-label">اسم المستخدم</label>
+                        <input type="text" class="form-control" id="username" name="username" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">كلمة المرور</label>
+                        <input type="password" class="form-control" id="password" name="password" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="user_type" class="form-label">نوع المستخدم</label>
+                        <select class="form-select" id="user_type" name="user_type" required>
+                            <option value="admin">مسؤول</option>
+                            <option value="instructor">مدرس</option>
+                            <option value="student">طالب</option>
+                        </select>
+                    </div>
+                    <div id="studentInfoFields" style="display: none;">
+                        <div class="mb-3">
+                            <label for="student_id" class="form-label">رقم الطالب</label>
+                            <input type="text" class="form-control" id="student_id" name="student_id">
+                        </div>
+                        <div class="mb-3">
+                            <label for="stage" class="form-label">المرحلة</label>
+                            <select class="form-select" id="stage" name="stage">
+                                <option value="1">المرحلة الأولى</option>
+                                <option value="2">المرحلة الثانية</option>
+                                <option value="3">المرحلة الثالثة</option>
+                                <option value="4">المرحلة الرابعة</option>
+                            </select>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                <button type="button" class="btn btn-primary" id="saveUserBtn">حفظ</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- نموذج تعديل مستخدم -->
+<div class="modal fade" id="editUserModal" tabindex="-1" aria-labelledby="editUserModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editUserModalLabel">تعديل بيانات المستخدم</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editUserForm">
+                    <input type="hidden" id="editUserId" name="user_id">
+                    <div class="mb-3">
+                        <label for="editName" class="form-label">الاسم</label>
+                        <input type="text" class="form-control" id="editName" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editUsername" class="form-label">اسم المستخدم</label>
+                        <input type="text" class="form-control" id="editUsername" name="username" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editPassword" class="form-label">كلمة المرور (اترك فارغًا للإبقاء على كلمة المرور الحالية)</label>
+                        <input type="password" class="form-control" id="editPassword" name="password">
+                    </div>
+                    <div id="editStudentInfoFields" style="display: none;">
+                        <div class="mb-3">
+                            <label for="editStudentId" class="form-label">رقم الطالب</label>
+                            <input type="text" class="form-control" id="editStudentId" name="student_id">
+                        </div>
+                        <div class="mb-3">
+                            <label for="editStage" class="form-label">المرحلة</label>
+                            <select class="form-select" id="editStage" name="stage">
+                                <option value="1">المرحلة الأولى</option>
+                                <option value="2">المرحلة الثانية</option>
+                                <option value="3">المرحلة الثالثة</option>
+                                <option value="4">المرحلة الرابعة</option>
+                            </select>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                <button type="button" class="btn btn-primary" id="updateUserBtn">تحديث</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- نموذج تأكيد الحذف -->
+<div class="modal fade" id="deleteUserModal" tabindex="-1" aria-labelledby="deleteUserModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteUserModalLabel">تأكيد الحذف</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+            </div>
+            <div class="modal-body">
+                <p>هل أنت متأكد من رغبتك في حذف المستخدم <span id="deleteUserName"></span>؟</p>
+                <p class="text-danger" id="deleteUserWarning"></p>
+                <input type="hidden" id="deleteUserId">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteUserBtn">حذف</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // عرض/إخفاء حقول معلومات الطالب حسب نوع المستخدم
+    document.getElementById('user_type').addEventListener('change', function() {
+        const showStudentFields = this.value === 'student';
+        document.getElementById('studentInfoFields').style.display = showStudentFields ? 'block' : 'none';
+    });
+    
+    // تحميل قائمة المستخدمين عند تحميل الصفحة
+    loadUsers();
+    
+    // إضافة الأحداث للأزرار
+    document.getElementById('searchUserBtn').addEventListener('click', searchUsers);
+    document.getElementById('userTypeFilter').addEventListener('change', searchUsers);
+    document.getElementById('saveUserBtn').addEventListener('click', saveUser);
+    document.getElementById('updateUserBtn').addEventListener('click', updateUser);
+    document.getElementById('confirmDeleteUserBtn').addEventListener('click', deleteUser);
+    
+    // البحث عند الضغط على Enter في حقل البحث
+    document.getElementById('searchUser').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            searchUsers();
+        }
+    });
+});
+
+// دالة لتحميل قائمة المستخدمين
+function loadUsers() {
+    const userTypeFilter = document.getElementById('userTypeFilter').value;
+    
+    fetch(`/admin/get_users${userTypeFilter ? `?user_type=${userTypeFilter}` : ''}`)
+        .then(response => response.json())
+        .then(users => {
+            displayUsers(users);
+        })
+        .catch(error => {
+            console.error('Error loading users:', error);
+            alert('حدث خطأ أثناء تحميل بيانات المستخدمين.');
+        });
+}
+
+// دالة للبحث عن المستخدمين
+function searchUsers() {
+    const searchTerm = document.getElementById('searchUser').value;
+    const userTypeFilter = document.getElementById('userTypeFilter').value;
+    
+    const params = new URLSearchParams();
+    if (searchTerm) params.append('search', searchTerm);
+    if (userTypeFilter) params.append('user_type', userTypeFilter);
+    
+    fetch(`/admin/get_users?${params.toString()}`)
+        .then(response => response.json())
+        .then(users => {
+            displayUsers(users);
+        })
+        .catch(error => {
+            console.error('Error searching users:', error);
+            alert('حدث خطأ أثناء البحث عن المستخدمين.');
+        });
+}
+
+// دالة لعرض قائمة المستخدمين في الجدول
+function displayUsers(users) {
+    const tableBody = document.getElementById('usersTableBody');
+    tableBody.innerHTML = '';
+    
+    if (users.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="6" class="text-center">لا توجد بيانات للعرض</td></tr>';
+        return;
+    }
+    
+    users.forEach((user, index) => {
+        const row = document.createElement('tr');
+        
+        // معلومات إضافية حسب نوع المستخدم
+        let additionalInfo = '';
+        if (user.user_type === 'student') {
+            additionalInfo = `رقم الطالب: ${user.student_id || ''}، المرحلة: ${user.stage || ''}`;
+        } else if (user.user_type === 'instructor') {
+            additionalInfo = 'مدرس';
+        } else if (user.user_type === 'admin') {
+            additionalInfo = 'مسؤول النظام';
+        }
+        
+        // ترجمة نوع المستخدم
+        let userTypeDisplay = '';
+        switch (user.user_type) {
+            case 'admin': userTypeDisplay = 'مسؤول'; break;
+            case 'instructor': userTypeDisplay = 'مدرس'; break;
+            case 'student': userTypeDisplay = 'طالب'; break;
+            default: userTypeDisplay = user.user_type;
+        }
+        
+        row.innerHTML = `
+            <td>${index + 1}</td>
+            <td>${user.name}</td>
+            <td>${user.username}</td>
+            <td>${userTypeDisplay}</td>
+            <td>${additionalInfo}</td>
+            <td>
+                <button class="btn btn-sm btn-primary edit-user" data-id="${user.id}">
+                    <i class="fas fa-edit"></i> تعديل
+                </button>
+                <button class="btn btn-sm btn-danger delete-user" data-id="${user.id}" data-name="${user.name}" data-type="${user.user_type}">
+                    <i class="fas fa-trash"></i> حذف
+                </button>
+            </td>
+        `;
+        tableBody.appendChild(row);
+    });
+    
+    // إضافة الأحداث لأزرار التعديل والحذف
+    document.querySelectorAll('.edit-user').forEach(button => {
+        button.addEventListener('click', function() {
+            const userId = this.getAttribute('data-id');
+            fetchUserDetails(userId);
+        });
+    });
+    
+    document.querySelectorAll('.delete-user').forEach(button => {
+        button.addEventListener('click', function() {
+            const userId = this.getAttribute('data-id');
+            const userName = this.getAttribute('data-name');
+            const userType = this.getAttribute('data-type');
+            
+            document.getElementById('deleteUserId').value = userId;
+            document.getElementById('deleteUserName').textContent = userName;
+            
+            let warningMessage = '';
+            if (userType === 'student') {
+                warningMessage = 'تحذير: حذف الطالب سيؤدي أيضًا إلى حذف جميع درجاته وبياناته في النظام.';
+            } else if (userType === 'admin') {
+                warningMessage = 'تحذير: حذف المسؤول سيؤدي إلى فقدان صلاحياته للنظام. تأكد من وجود مسؤول آخر للنظام.';
+            }
+            document.getElementById('deleteUserWarning').textContent = warningMessage;
+            
+            new bootstrap.Modal(document.getElementById('deleteUserModal')).show();
+        });
+    });
+}
+
+// دالة لجلب تفاصيل المستخدم للتعديل
+function fetchUserDetails(userId) {
+    fetch(`/admin/get_user_details?user_id=${userId}`)
+        .then(response => response.json())
+        .then(user => {
+            if (user.error) {
+                alert(user.error);
+                return;
+            }
+            
+            document.getElementById('editUserId').value = user.id;
+            document.getElementById('editName').value = user.name;
+            document.getElementById('editUsername').value = user.username;
+            document.getElementById('editPassword').value = '';
+            
+            if (user.user_type === 'student') {
+                document.getElementById('editStudentInfoFields').style.display = 'block';
+                document.getElementById('editStudentId').value = user.student_id || '';
+                document.getElementById('editStage').value = user.stage || '1';
+            } else {
+                document.getElementById('editStudentInfoFields').style.display = 'none';
+            }
+            
+            new bootstrap.Modal(document.getElementById('editUserModal')).show();
+        })
+        .catch(error => {
+            console.error('Error fetching user details:', error);
+            alert('حدث خطأ أثناء جلب بيانات المستخدم.');
+        });
+}
+
+// دالة لحفظ مستخدم جديد
+function saveUser() {
+    const form = document.getElementById('addUserForm');
+    const formData = new FormData(form);
+    
+    fetch('/admin/add_user', {
+        method: 'POST',
+        body: formData
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('تمت إضافة المستخدم بنجاح');
+                bootstrap.Modal.getInstance(document.getElementById('addUserModal')).hide();
+                form.reset();
+                document.getElementById('studentInfoFields').style.display = 'none';
+                loadUsers();
+            } else {
+                alert(`حدث خطأ: ${data.error}`);
+            }
+        })
+        .catch(error => {
+            console.error('Error adding user:', error);
+            alert('حدث خطأ أثناء إضافة المستخدم.');
+        });
+}
+
+// دالة لتحديث بيانات المستخدم
+function updateUser() {
+    const form = document.getElementById('editUserForm');
+    const formData = new FormData(form);
+    
+    fetch('/admin/update_user', {
+        method: 'POST',
+        body: formData
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('تم تحديث بيانات المستخدم بنجاح');
+                bootstrap.Modal.getInstance(document.getElementById('editUserModal')).hide();
+                loadUsers();
+            } else {
+                alert(`حدث خطأ: ${data.error}`);
+            }
+        })
+        .catch(error => {
+            console.error('Error updating user:', error);
+            alert('حدث خطأ أثناء تحديث بيانات المستخدم.');
+        });
+}
+
+// دالة لحذف المستخدم
+function deleteUser() {
+    const userId = document.getElementById('deleteUserId').value;
+    const formData = new FormData();
+    formData.append('user_id', userId);
+    
+    fetch('/admin/delete_user', {
+        method: 'POST',
+        body: formData
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('تم حذف المستخدم بنجاح');
+                bootstrap.Modal.getInstance(document.getElementById('deleteUserModal')).hide();
+                loadUsers();
+            } else {
+                alert(`حدث خطأ: ${data.error}`);
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting user:', error);
+            alert('حدث خطأ أثناء حذف المستخدم.');
+        });
+}
+</script>
+{% endblock %}

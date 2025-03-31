@@ -1,0 +1,284 @@
+{% extends "admin_layout.html" %}
+
+{% block title %}إعدادات النظام{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card mb-4">
+                <div class="card-header pb-0">
+                    <h6>إعدادات النظام</h6>
+                </div>
+                <div class="card-body px-0 pt-0 pb-2">
+                    <div class="p-4">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6>إعدادات عامة</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="form-group">
+                                            <label for="academicYear">العام الدراسي الحالي</label>
+                                            <input type="text" class="form-control" id="academicYear" value="{{ settings.current_academic_year|default('2024-2025') }}">
+                                        </div>
+                                        <div class="form-group mt-3">
+                                            <label for="currentSemester">الفصل الدراسي الحالي</label>
+                                            <select class="form-control" id="currentSemester">
+                                                <option value="1" {% if settings.current_semester == '1' %}selected{% endif %}>الفصل الأول</option>
+                                                <option value="2" {% if settings.current_semester == '2' %}selected{% endif %}>الفصل الثاني</option>
+                                            </select>
+                                        </div>
+                                        <button class="btn btn-primary mt-3" id="saveGeneral">حفظ الإعدادات</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6>إعدادات النظام</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="form-group">
+                                            <label for="minPassGrade">الحد الأدنى للنجاح</label>
+                                            <input type="number" class="form-control" id="minPassGrade" value="{{ settings.min_pass_grade|default('50') }}">
+                                        </div>
+                                        <div class="form-group mt-3">
+                                            <label for="maxDecisionMarks">الحد الأقصى لدرجات القرار</label>
+                                            <input type="number" class="form-control" id="maxDecisionMarks" value="{{ settings.max_decision_marks|default('10') }}">
+                                        </div>
+                                        <button class="btn btn-primary mt-3" id="saveSystem">حفظ الإعدادات</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row mt-4">
+                            <div class="col-md-12">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6>النسخ الاحتياطي واستعادة النظام</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <h6>إنشاء نسخة احتياطية</h6>
+                                                <p>قم بإنشاء نسخة احتياطية من قاعدة البيانات</p>
+                                                <a href="/api/admin/backup" class="btn btn-info" id="createBackup">إنشاء نسخة احتياطية</a>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <h6>استعادة نسخة احتياطية</h6>
+                                                <p>استعادة قاعدة البيانات من نسخة احتياطية سابقة</p>
+                                                <div class="form-group">
+                                                    <input type="file" class="form-control" id="backupFile">
+                                                </div>
+                                                <button class="btn btn-warning mt-3" id="restoreBackup">استعادة النسخة الاحتياطية</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row mt-4">
+                            <div class="col-md-12">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6>معلومات النظام</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="table-responsive">
+                                            <table class="table">
+                                                <tbody>
+                                                    <tr>
+                                                        <td>إصدار النظام</td>
+                                                        <td>1.0.0</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>تاريخ آخر تحديث</td>
+                                                        <td id="lastUpdate">-</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>عدد الطلاب</td>
+                                                        <td id="studentsCount">-</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>عدد المقررات</td>
+                                                        <td id="coursesCount">-</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>عدد المستخدمين</td>
+                                                        <td id="usersCount">-</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- أضف المودال للإشعارات -->
+<div class="modal fade" id="notificationModal" tabindex="-1" role="dialog" aria-labelledby="notificationModalLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="notificationModalLabel">إشعار</h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body" id="notificationBody">
+        ...
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">إغلاق</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    // تحميل البيانات الإحصائية
+    $.ajax({
+        url: '/api/admin/stats',
+        method: 'GET',
+        success: function(data) {
+            $('#studentsCount').text(data.students_count);
+            $('#coursesCount').text(data.courses_count);
+            $('#usersCount').text(data.users_count);
+            $('#lastUpdate').text(new Date().toLocaleDateString('ar-IQ'));
+        }
+    });
+    
+    // حفظ الإعدادات العامة
+    $('#saveGeneral').click(function() {
+        const academicYear = $('#academicYear').val();
+        const currentSemester = $('#currentSemester').val();
+        
+        if (!academicYear) {
+            showNotification('يرجى إدخال العام الدراسي');
+            return;
+        }
+        
+        // إرسال البيانات إلى الخادم
+        $.ajax({
+            url: '/api/admin/settings/update',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                'current_academic_year': academicYear,
+                'current_semester': currentSemester
+            }),
+            success: function(response) {
+                if (response.success) {
+                    showNotification('تم حفظ الإعدادات العامة بنجاح');
+                } else {
+                    showNotification('حدث خطأ: ' + response.error);
+                }
+            },
+            error: function() {
+                showNotification('حدث خطأ في الاتصال بالخادم');
+            }
+        });
+    });
+    
+    // حفظ إعدادات النظام
+    $('#saveSystem').click(function() {
+        const minPassGrade = $('#minPassGrade').val();
+        const maxDecisionMarks = $('#maxDecisionMarks').val();
+        
+        if (!minPassGrade || !maxDecisionMarks) {
+            showNotification('يرجى إدخال جميع القيم المطلوبة');
+            return;
+        }
+        
+        // التحقق من القيم
+        if (parseInt(minPassGrade) < 0 || parseInt(minPassGrade) > 100) {
+            showNotification('الحد الأدنى للنجاح يجب أن يكون بين 0 و 100');
+            return;
+        }
+        
+        if (parseInt(maxDecisionMarks) < 0 || parseInt(maxDecisionMarks) > 50) {
+            showNotification('الحد الأقصى لدرجات القرار يجب أن يكون بين 0 و 50');
+            return;
+        }
+        
+        // إرسال البيانات إلى الخادم
+        $.ajax({
+            url: '/api/admin/settings/update',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                'min_pass_grade': minPassGrade,
+                'max_decision_marks': maxDecisionMarks
+            }),
+            success: function(response) {
+                if (response.success) {
+                    showNotification('تم حفظ إعدادات النظام بنجاح');
+                } else {
+                    showNotification('حدث خطأ: ' + response.error);
+                }
+            },
+            error: function() {
+                showNotification('حدث خطأ في الاتصال بالخادم');
+            }
+        });
+    });
+    
+    // استعادة نسخة احتياطية
+    $('#restoreBackup').click(function() {
+        const file = $('#backupFile')[0].files[0];
+        if (!file) {
+            showNotification('الرجاء اختيار ملف النسخة الاحتياطية');
+            return;
+        }
+        
+        // التحقق من نوع الملف
+        if (file.type !== 'application/json') {
+            showNotification('الرجاء اختيار ملف JSON صحيح');
+            return;
+        }
+        
+        // قراءة الملف
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = JSON.parse(e.target.result);
+                
+                // التحقق من صحة بيانات النسخة الاحتياطية
+                if (!data.students || !data.courses || !data.grades || !data.users || !data.settings) {
+                    showNotification('ملف النسخة الاحتياطية غير صالح');
+                    return;
+                }
+                
+                // تأكيد استعادة النسخة الاحتياطية
+                if (confirm('هل أنت متأكد من استعادة النسخة الاحتياطية؟ سيتم استبدال جميع البيانات الحالية.')) {
+                    // يمكن إضافة رمز لاستعادة البيانات هنا
+                    showNotification('وظيفة استعادة النسخة الاحتياطية قيد التطوير');
+                }
+            } catch (error) {
+                showNotification('حدث خطأ في قراءة الملف: ' + error.message);
+            }
+        };
+        reader.readAsText(file);
+    });
+    
+    // دالة عرض الإشعارات
+    function showNotification(message) {
+        $('#notificationBody').text(message);
+        $('#notificationModal').modal('show');
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,607 @@
+{% extends "admin_layout.html" %}
+
+{% block admin_content %}
+<div class="row">
+    <div class="col-md-12 mb-4">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">التقارير والإحصائيات</h5>
+            </div>
+            <div class="card-body">
+                <ul class="nav nav-tabs" id="reportsTab" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="students-tab" data-bs-toggle="tab" data-bs-target="#students-tab-pane" type="button" role="tab">إحصائيات الطلاب</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="grades-tab" data-bs-toggle="tab" data-bs-target="#grades-tab-pane" type="button" role="tab">إحصائيات الدرجات</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="courses-tab" data-bs-toggle="tab" data-bs-target="#courses-tab-pane" type="button" role="tab">إحصائيات المقررات</button>
+                    </li>
+                </ul>
+                <div class="tab-content p-3" id="reportsTabContent">
+                    <!-- إحصائيات الطلاب -->
+                    <div class="tab-pane fade show active" id="students-tab-pane" role="tabpanel" aria-labelledby="students-tab" tabindex="0">
+                        <div class="row">
+                            <div class="col-md-4 mb-4">
+                                <div class="card border-left-primary shadow h-100">
+                                    <div class="card-body">
+                                        <div class="d-flex">
+                                            <div class="flex-grow-1">
+                                                <h6 class="text-primary fw-bold">إجمالي الطلاب</h6>
+                                                <h5 class="mb-0 fw-bold" id="totalStudents">-</h5>
+                                            </div>
+                                            <div class="p-2">
+                                                <i class="fas fa-users fa-2x text-gray-300"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-8 mb-4">
+                                <div class="card shadow h-100">
+                                    <div class="card-header bg-light">
+                                        <h6 class="mb-0">توزيع الطلاب حسب المرحلة</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <canvas id="studentsByStageChart" height="200"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-12">
+                                <div class="card shadow">
+                                    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                                        <h6 class="mb-0">تحليل نجاح الطلاب</h6>
+                                        <div class="btn-group btn-group-sm">
+                                            <button class="btn btn-outline-primary active" id="successRateByStageBtn">حسب المرحلة</button>
+                                            <button class="btn btn-outline-primary" id="successRateBySemesterBtn">حسب الفصل</button>
+                                        </div>
+                                    </div>
+                                    <div class="card-body">
+                                        <canvas id="successRateChart" height="250"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- إحصائيات الدرجات -->
+                    <div class="tab-pane fade" id="grades-tab-pane" role="tabpanel" aria-labelledby="grades-tab" tabindex="0">
+                        <div class="row mb-3">
+                            <div class="col-md-3">
+                                <select id="gradeStageFilter" class="form-select">
+                                    <option value="">كل المراحل</option>
+                                    <option value="1">المرحلة الأولى</option>
+                                    <option value="2">المرحلة الثانية</option>
+                                    <option value="3">المرحلة الثالثة</option>
+                                    <option value="4">المرحلة الرابعة</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <select id="gradeSemesterFilter" class="form-select">
+                                    <option value="">كل الفصول</option>
+                                    <option value="1">الفصل الأول</option>
+                                    <option value="2">الفصل الثاني</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <select id="gradeCourseFilter" class="form-select">
+                                    <option value="">كل المقررات</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <button class="btn btn-primary" id="applyGradeFiltersBtn">
+                                    <i class="fas fa-filter"></i> تطبيق
+                                </button>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-4">
+                                <div class="card shadow h-100">
+                                    <div class="card-header bg-light">
+                                        <h6 class="mb-0">توزيع التقديرات</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <canvas id="gradeDistributionChart" height="250"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-4">
+                                <div class="card shadow h-100">
+                                    <div class="card-header bg-light">
+                                        <h6 class="mb-0">معدل الدرجات</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <canvas id="averageGradesChart" height="250"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-12">
+                                <div class="card shadow">
+                                    <div class="card-header bg-light">
+                                        <h6 class="mb-0">أعلى وأدنى الدرجات</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <h6>أعلى 10 طلاب</h6>
+                                                <div class="table-responsive">
+                                                    <table class="table table-sm" id="topStudentsTable">
+                                                        <thead>
+                                                            <tr>
+                                                                <th>#</th>
+                                                                <th>اسم الطالب</th>
+                                                                <th>المرحلة</th>
+                                                                <th>المعدل</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            <!-- بيانات أعلى الطلاب -->
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <h6>أدنى 10 طلاب</h6>
+                                                <div class="table-responsive">
+                                                    <table class="table table-sm" id="bottomStudentsTable">
+                                                        <thead>
+                                                            <tr>
+                                                                <th>#</th>
+                                                                <th>اسم الطالب</th>
+                                                                <th>المرحلة</th>
+                                                                <th>المعدل</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            <!-- بيانات أدنى الطلاب -->
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- إحصائيات المقررات -->
+                    <div class="tab-pane fade" id="courses-tab-pane" role="tabpanel" aria-labelledby="courses-tab" tabindex="0">
+                        <div class="row">
+                            <div class="col-md-4 mb-4">
+                                <div class="card border-left-info shadow h-100">
+                                    <div class="card-body">
+                                        <div class="d-flex">
+                                            <div class="flex-grow-1">
+                                                <h6 class="text-info fw-bold">إجمالي المقررات</h6>
+                                                <h5 class="mb-0 fw-bold" id="totalCourses">-</h5>
+                                            </div>
+                                            <div class="p-2">
+                                                <i class="fas fa-book fa-2x text-gray-300"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-8 mb-4">
+                                <div class="card shadow h-100">
+                                    <div class="card-header bg-light">
+                                        <h6 class="mb-0">توزيع المقررات حسب المرحلة والفصل</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <canvas id="courseDistributionChart" height="200"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-12">
+                                <div class="card shadow">
+                                    <div class="card-header bg-light">
+                                        <h6 class="mb-0">أصعب المقررات (بناءً على نسبة النجاح)</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <canvas id="hardestCoursesChart" height="250"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{{ url_for('static', filename='js/charts-config.js') }}"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // تحميل البيانات الأولية
+    loadStudentStatistics();
+    loadCourseStatistics();
+    
+    // إضافة الأحداث
+    document.getElementById('successRateByStageBtn').addEventListener('click', function() {
+        this.classList.add('active');
+        document.getElementById('successRateBySemesterBtn').classList.remove('active');
+        loadSuccessRateByStage();
+    });
+    
+    document.getElementById('successRateBySemesterBtn').addEventListener('click', function() {
+        this.classList.add('active');
+        document.getElementById('successRateByStageBtn').classList.remove('active');
+        loadSuccessRateBySemester();
+    });
+    
+    document.getElementById('gradeStageFilter').addEventListener('change', loadGradeCourses);
+    document.getElementById('gradeSemesterFilter').addEventListener('change', loadGradeCourses);
+    document.getElementById('applyGradeFiltersBtn').addEventListener('click', applyGradeFilters);
+    
+    // أحداث تبويبات التقارير
+    document.getElementById('grades-tab').addEventListener('click', function() {
+        if (!this.dataset.loaded) {
+            loadGradeStatistics();
+            this.dataset.loaded = 'true';
+        }
+    });
+    
+    document.getElementById('courses-tab').addEventListener('click', function() {
+        if (!this.dataset.loaded) {
+            loadHardestCourses();
+            this.dataset.loaded = 'true';
+        }
+    });
+});
+
+// إحصائيات الطلاب
+function loadStudentStatistics() {
+    fetch('/admin/stats/students')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('totalStudents').textContent = data.total_students;
+            
+            // رسم مخطط توزيع الطلاب حسب المرحلة
+            const ctx = document.getElementById('studentsByStageChart').getContext('2d');
+            
+            // مسح الرسم البياني السابق إن وجد
+            if (window.studentsByStageChart) {
+                window.studentsByStageChart.destroy();
+            }
+            
+            window.studentsByStageChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['المرحلة الأولى', 'المرحلة الثانية', 'المرحلة الثالثة', 'المرحلة الرابعة'],
+                    datasets: [{
+                        label: 'عدد الطلاب',
+                        data: data.students_by_stage,
+                        backgroundColor: colorsScheme.backgroundColors.slice(0, 4),
+                        borderColor: colorsScheme.borderColors.slice(0, 4),
+                        borderWidth: 1
+                    }]
+                },
+                options: barChartOptions
+            });
+            
+            // تحميل نسب النجاح حسب المرحلة كافتراضي
+            loadSuccessRateByStage();
+        })
+        .catch(error => {
+            console.error('Error loading student statistics:', error);
+        });
+}
+
+// نسب النجاح حسب المرحلة
+function loadSuccessRateByStage() {
+    fetch('/admin/stats/success_rate_by_stage')
+        .then(response => response.json())
+        .then(data => {
+            const ctx = document.getElementById('successRateChart').getContext('2d');
+            
+            // مسح الرسم البياني السابق إن وجد
+            if (window.successRateChart) {
+                window.successRateChart.destroy();
+            }
+            
+            window.successRateChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['المرحلة الأولى', 'المرحلة الثانية', 'المرحلة الثالثة', 'المرحلة الرابعة'],
+                    datasets: [{
+                        label: 'نسبة النجاح (%)',
+                        data: data.success_rates,
+                        backgroundColor: colorsScheme.backgroundColors.slice(0, 4),
+                        borderColor: colorsScheme.borderColors.slice(0, 4),
+                        borderWidth: 1
+                    }]
+                },
+                options: barChartOptions
+            });
+        })
+        .catch(error => {
+            console.error('Error loading success rate by stage:', error);
+        });
+}
+
+// نسب النجاح حسب الفصل
+function loadSuccessRateBySemester() {
+    fetch('/admin/stats/success_rate_by_semester')
+        .then(response => response.json())
+        .then(data => {
+            const ctx = document.getElementById('successRateChart').getContext('2d');
+            
+            // مسح الرسم البياني السابق إن وجد
+            if (window.successRateChart) {
+                window.successRateChart.destroy();
+            }
+            
+            window.successRateChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['الفصل الأول', 'الفصل الثاني'],
+                    datasets: [{
+                        label: 'نسبة النجاح (%)',
+                        data: data.success_rates,
+                        backgroundColor: colorsScheme.backgroundColors.slice(0, 2),
+                        borderColor: colorsScheme.borderColors.slice(0, 2),
+                        borderWidth: 1
+                    }]
+                },
+                options: barChartOptions
+            });
+        })
+        .catch(error => {
+            console.error('Error loading success rate by semester:', error);
+        });
+}
+
+// إحصائيات الدرجات
+function loadGradeStatistics() {
+    loadGradeCourses();
+    loadGradeDistribution();
+    loadTopAndBottomStudents();
+}
+
+// تحميل قائمة المقررات حسب المرحلة والفصل المحدد
+function loadGradeCourses() {
+    const stage = document.getElementById('gradeStageFilter').value;
+    const semester = document.getElementById('gradeSemesterFilter').value;
+    
+    const params = new URLSearchParams();
+    if (stage) params.append('stage', stage);
+    if (semester) params.append('semester', semester);
+    
+    fetch(`/get_courses?${params.toString()}`)
+        .then(response => response.json())
+        .then(courses => {
+            const courseSelect = document.getElementById('gradeCourseFilter');
+            courseSelect.innerHTML = '<option value="">كل المقررات</option>';
+            
+            courses.forEach(course => {
+                const option = document.createElement('option');
+                option.value = course.id;
+                option.textContent = course.name;
+                courseSelect.appendChild(option);
+            });
+        })
+        .catch(error => {
+            console.error('Error loading courses:', error);
+        });
+}
+
+// تطبيق فلاتر الدرجات
+function applyGradeFilters() {
+    loadGradeDistribution();
+    loadAverageGrades();
+}
+
+// توزيع التقديرات
+function loadGradeDistribution() {
+    const stage = document.getElementById('gradeStageFilter').value;
+    const semester = document.getElementById('gradeSemesterFilter').value;
+    const courseId = document.getElementById('gradeCourseFilter').value;
+    
+    const params = new URLSearchParams();
+    if (stage) params.append('stage', stage);
+    if (semester) params.append('semester', semester);
+    if (courseId) params.append('course_id', courseId);
+    
+    fetch(`/admin/stats/grade_distribution?${params.toString()}`)
+        .then(response => response.json())
+        .then(data => {
+            const ctx = document.getElementById('gradeDistributionChart').getContext('2d');
+            
+            // مسح الرسم البياني السابق إن وجد
+            if (window.gradeDistributionChart) {
+                window.gradeDistributionChart.destroy();
+            }
+            
+            window.gradeDistributionChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: ['امتياز', 'جيد جدًا', 'جيد', 'متوسط', 'مقبول', 'راسب'],
+                    datasets: [{
+                        data: data.distribution,
+                        backgroundColor: colorsScheme.backgroundColors,
+                        borderColor: colorsScheme.borderColors,
+                        borderWidth: 1
+                    }]
+                },
+                options: pieChartOptions
+            });
+            
+            // تحميل معدل الدرجات
+            loadAverageGrades();
+        })
+        .catch(error => {
+            console.error('Error loading grade distribution:', error);
+        });
+}
+
+// معدل الدرجات
+function loadAverageGrades() {
+    const stage = document.getElementById('gradeStageFilter').value;
+    const semester = document.getElementById('gradeSemesterFilter').value;
+    const courseId = document.getElementById('gradeCourseFilter').value;
+    
+    const params = new URLSearchParams();
+    if (stage) params.append('stage', stage);
+    if (semester) params.append('semester', semester);
+    if (courseId) params.append('course_id', courseId);
+    
+    fetch(`/admin/stats/average_grades?${params.toString()}`)
+        .then(response => response.json())
+        .then(data => {
+            const ctx = document.getElementById('averageGradesChart').getContext('2d');
+            
+            // مسح الرسم البياني السابق إن وجد
+            if (window.averageGradesChart) {
+                window.averageGradesChart.destroy();
+            }
+            
+            window.averageGradesChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.labels,
+                    datasets: [{
+                        label: 'معدل الدرجات',
+                        data: data.averages,
+                        backgroundColor: 'rgba(78, 115, 223, 0.7)',
+                        borderColor: 'rgba(78, 115, 223, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: barChartOptions
+            });
+            
+            // تحميل أعلى وأدنى الطلاب
+            loadTopAndBottomStudents();
+        })
+        .catch(error => {
+            console.error('Error loading average grades:', error);
+        });
+}
+
+// أعلى وأدنى الطلاب
+function loadTopAndBottomStudents() {
+    fetch('/admin/stats/top_bottom_students')
+        .then(response => response.json())
+        .then(data => {
+            const topTable = document.getElementById('topStudentsTable').querySelector('tbody');
+            const bottomTable = document.getElementById('bottomStudentsTable').querySelector('tbody');
+            
+            // عرض أعلى الطلاب
+            topTable.innerHTML = '';
+            data.top_students.forEach((student, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>${student.name}</td>
+                    <td>المرحلة ${student.stage}</td>
+                    <td>${student.average.toFixed(2)}%</td>
+                `;
+                topTable.appendChild(row);
+            });
+            
+            // عرض أدنى الطلاب
+            bottomTable.innerHTML = '';
+            data.bottom_students.forEach((student, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>${student.name}</td>
+                    <td>المرحلة ${student.stage}</td>
+                    <td>${student.average.toFixed(2)}%</td>
+                `;
+                bottomTable.appendChild(row);
+            });
+        })
+        .catch(error => {
+            console.error('Error loading top and bottom students:', error);
+        });
+}
+
+// إحصائيات المقررات
+function loadCourseStatistics() {
+    fetch('/admin/stats/courses')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('totalCourses').textContent = data.total_courses;
+            
+            // رسم مخطط توزيع المقررات حسب المرحلة والفصل
+            const ctx = document.getElementById('courseDistributionChart').getContext('2d');
+            
+            // مسح الرسم البياني السابق إن وجد
+            if (window.courseDistributionChart) {
+                window.courseDistributionChart.destroy();
+            }
+            
+            window.courseDistributionChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['المرحلة الأولى', 'المرحلة الثانية', 'المرحلة الثالثة', 'المرحلة الرابعة'],
+                    datasets: [
+                        {
+                            label: 'الفصل الأول',
+                            data: data.semester1_courses,
+                            backgroundColor: 'rgba(78, 115, 223, 0.7)',
+                            borderColor: 'rgba(78, 115, 223, 1)',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'الفصل الثاني',
+                            data: data.semester2_courses,
+                            backgroundColor: 'rgba(54, 185, 204, 0.7)',
+                            borderColor: 'rgba(54, 185, 204, 1)',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: barChartOptions
+            });
+        })
+        .catch(error => {
+            console.error('Error loading course statistics:', error);
+        });
+}
+
+// أصعب المقررات
+function loadHardestCourses() {
+    fetch('/admin/stats/hardest_courses')
+        .then(response => response.json())
+        .then(data => {
+            const ctx = document.getElementById('hardestCoursesChart').getContext('2d');
+            
+            // مسح الرسم البياني السابق إن وجد
+            if (window.hardestCoursesChart) {
+                window.hardestCoursesChart.destroy();
+            }
+            
+            window.hardestCoursesChart = new Chart(ctx, {
+                type: 'horizontalBar',
+                data: {
+                    labels: data.courses.map(c => c.name),
+                    datasets: [{
+                        label: 'نسبة الرسوب (%)',
+                        data: data.courses.map(c => c.fail_rate),
+                        backgroundColor: 'rgba(231, 74, 59, 0.7)',
+                        borderColor: 'rgba(231, 74, 59, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: barChartOptions
+            });
+        })
+        .catch(error => {
+            console.error('Error loading hardest courses:', error);
+        });
+}
+</script>
+{% endblock %}

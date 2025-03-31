@@ -498,3 +498,255 @@
 .badge.bg-success {
     background-color: var(--success-color) !important;
 }
+
+/* تنسيقات خاصة للرسومات البيانية */
+.card canvas {
+    min-height: 250px;
+    max-height: 350px;
+    width: 100% !important;
+    position: relative;
+}
+
+.chart-container {
+    position: relative;
+    padding: 15px;
+    height: 100%;
+    width: 100%;
+}
+
+/* ضبط حجم الرسومات البيانية */
+.pie-chart-container {
+    height: 300px;
+    margin: 0 auto;
+    position: relative;
+}
+
+.bar-chart-container {
+    height: 300px;
+    width: 100%;
+    position: relative;
+}
+
+/* تثبيت الرسومات البيانية عند تمرير المؤشر */
+canvas:hover {
+    cursor: default !important;
+    transform: none !important;
+}
+
+/* تجاوز تأثيرات التحويم على الرسومات البيانية داخل البطاقات */
+.card:hover canvas {
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+/* تعديل تنسيق لوحة المعلومات عند تمرير المؤشر */
+.chart-tooltip {
+    background-color: rgba(0, 0, 0, 0.8) !important;
+    color: white !important;
+    padding: 10px !important;
+    border-radius: 4px !important;
+    font-size: 14px !important;
+    font-weight: bold !important;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2) !important;
+    border: none !important;
+    z-index: 1000 !important;
+}
+
+/* تنسيق حاويات الإحصاءات */
+.stats-card {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.stats-card .card-body {
+    flex: 1;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+/* تعديل تباعد عناصر التقارير */
+.tab-pane {
+    padding: 15px;
+}
+
+.tab-content .row {
+    margin-bottom: 20px;
+}
+
+/* تحسينات خاصة بصفحات الإدارة */
+.admin-dashboard .card {
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    margin-bottom: 1.5rem;
+    border: none;
+    transition: all 0.3s ease;
+}
+
+.admin-dashboard .card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+}
+
+.admin-dashboard .card-header {
+    background-color: rgba(0, 0, 0, 0.03);
+    font-weight: 600;
+    padding: 1rem 1.25rem;
+    border-radius: 10px 10px 0 0;
+}
+
+.admin-dashboard .card-body {
+    padding: 1.5rem;
+}
+
+.admin-dashboard .card-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+}
+
+.admin-dashboard .card-text.display-4 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+}
+
+/* تحسينات حجم الجداول في صفحات الإدارة */
+.admin-table {
+    width: 100%;
+    margin-bottom: 0;
+}
+
+.admin-table th {
+    font-weight: 600;
+    background-color: rgba(0, 0, 0, 0.02);
+    white-space: nowrap;
+}
+
+.admin-table td, .admin-table th {
+    padding: 0.75rem 1rem;
+    vertical-align: middle;
+}
+
+/* تحسين أزرار الإجراءات في الجداول */
+.action-buttons .btn {
+    padding: 0.375rem 0.5rem;
+    font-size: 0.875rem;
+    margin-left: 5px;
+}
+
+/* تحسين مربعات البحث والتصفية */
+.admin-dashboard .input-group {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.admin-dashboard .form-control,
+.admin-dashboard .form-select {
+    border: 1px solid #e9ecef;
+    padding: 0.625rem 1rem;
+    box-shadow: none;
+    font-size: 0.95rem;
+}
+
+.admin-dashboard .form-control:focus,
+.admin-dashboard .form-select:focus {
+    box-shadow: 0 0 0 0.25rem rgba(75, 163, 227, 0.1);
+    border-color: #4ba3e3;
+}
+
+/* تنسيق بطاقات الإحصائيات في لوحة التحكم */
+.stat-card {
+    border-radius: 10px;
+    padding: 1.25rem;
+    height: 140px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.stat-card .icon {
+    font-size: 3rem;
+    opacity: 0.3;
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+}
+
+.stat-card h5 {
+    position: relative;
+    z-index: 1;
+}
+
+.stat-card .number {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.stat-card .link {
+    margin-top: auto;
+    color: inherit;
+    opacity: 0.8;
+    transition: all 0.2s ease;
+}
+
+.stat-card .link:hover {
+    opacity: 1;
+    text-decoration: none;
+}
+
+/* تحسين أحجام النصوص في الشاشات المختلفة */
+@media (max-width: 768px) {
+    .admin-dashboard .card-text.display-4 {
+        font-size: 2rem;
+    }
+    
+    .stat-card {
+        height: auto;
+        min-height: 120px;
+    }
+    
+    .stat-card .number {
+        font-size: 2rem;
+    }
+    
+    .admin-dashboard .card-title {
+        font-size: 1rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .admin-dashboard .card-text.display-4 {
+        font-size: 1.75rem;
+    }
+    
+    .admin-dashboard .action-buttons .btn {
+        padding: 0.25rem 0.4rem;
+        font-size: 0.8rem;
+    }
+    
+    .main-content {
+        padding: 15px 10px;
+    }
+}
+
+/* تحسين المودال في صفحات الإدارة */
+.admin-modal .modal-header {
+    background-color: #f8f9fa;
+    border-bottom: 2px solid #e9ecef;
+    border-radius: 10px 10px 0 0;
+}
+
+.admin-modal .modal-footer {
+    background-color: #f8f9fa;
+    border-top: 2px solid #e9ecef;
+    border-radius: 0 0 10px 10px;
+}
+
+.admin-modal .form-group {
+    margin-bottom: 1.25rem;
+}

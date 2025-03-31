@@ -1,0 +1,461 @@
+{% extends "admin_layout.html" %}
+
+{% block admin_content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow mb-4">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-graduation-cap me-2"></i> إدارة الدرجات</h5>
+                <div>
+                    <button class="btn btn-light btn-sm" id="exportGradesBtn">
+                        <i class="fas fa-file-export"></i> تصدير البيانات
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <label for="stageFilter" class="form-label">المرحلة</label>
+                        <select id="stageFilter" class="form-select">
+                            <option value="">اختر المرحلة</option>
+                            <option value="1">المرحلة الأولى</option>
+                            <option value="2">المرحلة الثانية</option>
+                            <option value="3">المرحلة الثالثة</option>
+                            <option value="4">المرحلة الرابعة</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="semesterFilter" class="form-label">الفصل الدراسي</label>
+                        <select id="semesterFilter" class="form-select">
+                            <option value="">اختر الفصل</option>
+                            <option value="1">الفصل الأول</option>
+                            <option value="2">الفصل الثاني</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="courseFilter" class="form-label">المقرر الدراسي</label>
+                        <select id="courseFilter" class="form-select">
+                            <option value="">اختر المقرر</option>
+                            <!-- سيتم ملؤها عبر JavaScript -->
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label d-block">&nbsp;</label>
+                        <button class="btn btn-primary w-100" id="loadGradesBtn">
+                            <i class="fas fa-search"></i> عرض الدرجات
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="gradesContainer" class="d-none">
+                    <div class="card mb-4">
+                        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">
+                                <i class="fas fa-info-circle me-2"></i>
+                                <span id="courseNameDisplay" class="text-primary fw-bold"></span> | 
+                                <span id="stageDisplay"></span> | 
+                                <span id="semesterDisplay"></span>
+                            </h6>
+                            <button class="btn btn-success btn-sm" id="saveGradesBtn">
+                                <i class="fas fa-save me-1"></i> حفظ التغييرات
+                            </button>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-hover mb-0" id="gradesTable">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th width="5%">رقم</th>
+                                            <th width="15%">رقم الطالب</th>
+                                            <th width="25%">اسم الطالب</th>
+                                            <th width="15%">درجة الأعمال (30)</th>
+                                            <th width="15%">درجة الامتحان (70)</th>
+                                            <th width="10%">المجموع</th>
+                                            <th width="15%">التقدير</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="gradesTableBody">
+                                        <!-- البيانات ستضاف هنا عبر JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="noGradesMessage" class="alert alert-info text-center my-5 d-none">
+                    <i class="fas fa-exclamation-circle fa-3x mb-3 text-info"></i>
+                    <h5>لا توجد بيانات للعرض</h5>
+                    <p class="mb-0">يرجى اختيار المرحلة والفصل والمقرر أولاً</p>
+                </div>
+                
+                <div id="loadingGrades" class="text-center my-5 d-none">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">جار التحميل...</span>
+                    </div>
+                    <p class="mt-2">جار تحميل البيانات...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // إضافة الأحداث للعناصر
+    document.getElementById('stageFilter').addEventListener('change', loadCourses);
+    document.getElementById('semesterFilter').addEventListener('change', loadCourses);
+    document.getElementById('loadGradesBtn').addEventListener('click', loadStudentGrades);
+    document.getElementById('saveGradesBtn').addEventListener('click', saveGrades);
+    document.getElementById('exportGradesBtn').addEventListener('click', exportGrades);
+    
+    // تعطيل زر عرض الدرجات حتى يتم اختيار جميع الفلاتر
+    updateLoadButtonState();
+    
+    // مراقبة تغيير الفلاتر لتحديث حالة زر العرض
+    document.getElementById('stageFilter').addEventListener('change', updateLoadButtonState);
+    document.getElementById('semesterFilter').addEventListener('change', updateLoadButtonState);
+    document.getElementById('courseFilter').addEventListener('change', updateLoadButtonState);
+});
+
+function updateLoadButtonState() {
+    const stage = document.getElementById('stageFilter').value;
+    const semester = document.getElementById('semesterFilter').value;
+    const course = document.getElementById('courseFilter').value;
+    
+    const loadButton = document.getElementById('loadGradesBtn');
+    loadButton.disabled = !stage || !semester || !course;
+}
+
+function loadCourses() {
+    const stage = document.getElementById('stageFilter').value;
+    const semester = document.getElementById('semesterFilter').value;
+    
+    if (!stage || !semester) {
+        resetCourseDropdown();
+        return;
+    }
+    
+    showElement('gradesContainer', false);
+    showElement('noGradesMessage', false);
+    
+    fetch(`/admin/api/courses?stage=${stage}&semester=${semester}`)
+        .then(response => response.json())
+        .then(data => {
+            const courseSelect = document.getElementById('courseFilter');
+            courseSelect.innerHTML = '<option value="">اختر المقرر</option>';
+            
+            if (!data.courses || data.courses.length === 0) {
+                courseSelect.disabled = true;
+                return;
+            }
+            
+            courseSelect.disabled = false;
+            data.courses.forEach(course => {
+                const option = document.createElement('option');
+                option.value = course.id;
+                option.textContent = course.name;
+                courseSelect.appendChild(option);
+            });
+        })
+        .catch(error => {
+            console.error('Error loading courses:', error);
+            showError('حدث خطأ أثناء تحميل المقررات');
+            resetCourseDropdown();
+        });
+}
+
+function resetCourseDropdown() {
+    const courseSelect = document.getElementById('courseFilter');
+    courseSelect.innerHTML = '<option value="">اختر المقرر</option>';
+    courseSelect.disabled = true;
+}
+
+function loadStudentGrades() {
+    const stage = document.getElementById('stageFilter').value;
+    const semester = document.getElementById('semesterFilter').value;
+    const courseId = document.getElementById('courseFilter').value;
+    
+    if (!stage || !semester || !courseId) {
+        showError('يرجى اختيار المرحلة والفصل والمقرر أولاً');
+        return;
+    }
+    
+    // إظهار رسالة التحميل
+    showElement('gradesContainer', false);
+    showElement('noGradesMessage', false);
+    showElement('loadingGrades', true);
+    
+    const courseName = document.getElementById('courseFilter').options[document.getElementById('courseFilter').selectedIndex].text;
+    const stageName = document.getElementById('stageFilter').options[document.getElementById('stageFilter').selectedIndex].text;
+    const semesterName = document.getElementById('semesterFilter').options[document.getElementById('semesterFilter').selectedIndex].text;
+    
+    document.getElementById('courseNameDisplay').textContent = courseName;
+    document.getElementById('stageDisplay').textContent = stageName;
+    document.getElementById('semesterDisplay').textContent = semesterName;
+    
+    fetch(`/admin/get_student_grades?course_id=${courseId}&stage=${stage}`)
+        .then(response => response.json())
+        .then(data => {
+            // إخفاء رسالة التحميل
+            showElement('loadingGrades', false);
+            
+            if (!data || data.length === 0) {
+                showElement('noGradesMessage', true);
+                return;
+            }
+            
+            displayGrades(data, courseId);
+            showElement('gradesContainer', true);
+        })
+        .catch(error => {
+            console.error('Error loading student grades:', error);
+            showError('حدث خطأ أثناء تحميل درجات الطلاب');
+            showElement('loadingGrades', false);
+            showElement('noGradesMessage', true);
+        });
+}
+
+function displayGrades(grades, courseId) {
+    const tableBody = document.getElementById('gradesTableBody');
+    tableBody.innerHTML = '';
+    
+    grades.forEach((grade, index) => {
+        const row = document.createElement('tr');
+        row.dataset.studentId = grade.student_id;
+        row.dataset.gradeId = grade.id || '';
+        
+        // حساب المجموع
+        const coursework = parseInt(grade.coursework || 0);
+        const finalExam = parseInt(grade.final_exam || 0);
+        const total = coursework + finalExam;
+        
+        // تحديد التقدير
+        const evaluation = getGradeEvaluation(total);
+        
+        row.innerHTML = `
+            <td class="text-center">${index + 1}</td>
+            <td class="text-center">${grade.student_number}</td>
+            <td>${grade.student_name}</td>
+            <td>
+                <input type="number" class="form-control form-control-sm coursework-input" 
+                    value="${coursework}" min="0" max="30" required
+                    data-student-id="${grade.student_id}">
+            </td>
+            <td>
+                <input type="number" class="form-control form-control-sm final-exam-input" 
+                    value="${finalExam}" min="0" max="70" required
+                    data-student-id="${grade.student_id}">
+            </td>
+            <td class="text-center total-cell fw-bold">${total}</td>
+            <td class="text-center evaluation-cell ${getEvaluationColorClass(evaluation)}">${evaluation}</td>
+        `;
+        
+        tableBody.appendChild(row);
+    });
+    
+    // إضافة أحداث للمدخلات لتحديث المجموع والتقدير تلقائيًا
+    document.querySelectorAll('.coursework-input, .final-exam-input').forEach(input => {
+        input.addEventListener('input', function() {
+            const row = this.closest('tr');
+            const courseworkInput = row.querySelector('.coursework-input');
+            const finalExamInput = row.querySelector('.final-exam-input');
+            const totalCell = row.querySelector('.total-cell');
+            const evaluationCell = row.querySelector('.evaluation-cell');
+            
+            updateTotalAndEvaluation(courseworkInput, finalExamInput, totalCell, evaluationCell);
+        });
+    });
+}
+
+function updateTotalAndEvaluation(courseworkInput, finalExamInput, totalCell, evaluationCell) {
+    // التأكد من أن القيم ضمن النطاق المسموح
+    let coursework = parseInt(courseworkInput.value) || 0;
+    let finalExam = parseInt(finalExamInput.value) || 0;
+    
+    if (coursework < 0) coursework = 0;
+    if (coursework > 30) coursework = 30;
+    
+    if (finalExam < 0) finalExam = 0;
+    if (finalExam > 70) finalExam = 70;
+    
+    courseworkInput.value = coursework;
+    finalExamInput.value = finalExam;
+    
+    // حساب المجموع
+    const total = coursework + finalExam;
+    totalCell.textContent = total;
+    
+    // تحديد التقدير
+    const evaluation = getGradeEvaluation(total);
+    evaluationCell.textContent = evaluation;
+    
+    // تحديث لون التقدير
+    evaluationCell.className = 'text-center evaluation-cell ' + getEvaluationColorClass(evaluation);
+}
+
+function getGradeEvaluation(total) {
+    if (total >= 90) return 'امتياز';
+    if (total >= 80) return 'جيد جدًا';
+    if (total >= 70) return 'جيد';
+    if (total >= 60) return 'مقبول';
+    if (total >= 50) return 'ضعيف';
+    return 'راسب';
+}
+
+function getEvaluationColorClass(evaluation) {
+    switch (evaluation) {
+        case 'امتياز': return 'text-success fw-bold';
+        case 'جيد جدًا': return 'text-primary fw-bold';
+        case 'جيد': return 'text-info fw-bold';
+        case 'مقبول': return 'text-warning fw-bold';
+        case 'ضعيف': return 'text-secondary';
+        case 'راسب': return 'text-danger';
+        default: return '';
+    }
+}
+
+function saveGrades() {
+    const rows = document.querySelectorAll('#gradesTableBody tr');
+    const courseId = document.getElementById('courseFilter').value;
+    const gradesData = [];
+    
+    rows.forEach(row => {
+        const studentId = row.dataset.studentId;
+        const gradeId = row.dataset.gradeId;
+        const coursework = parseInt(row.querySelector('.coursework-input').value) || 0;
+        const finalExam = parseInt(row.querySelector('.final-exam-input').value) || 0;
+        
+        gradesData.push({
+            student_id: studentId,
+            grade_id: gradeId,
+            course_id: courseId,
+            coursework: coursework,
+            final_exam: finalExam
+        });
+    });
+    
+    if (gradesData.length === 0) {
+        showError('لا توجد بيانات للحفظ');
+        return;
+    }
+    
+    // تعطيل زر الحفظ وإظهار مؤشر التحميل
+    const saveButton = document.getElementById('saveGradesBtn');
+    const originalText = saveButton.innerHTML;
+    saveButton.disabled = true;
+    saveButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> جار الحفظ...';
+    
+    fetch('/admin/api/grades/save', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ grades: gradesData })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showSuccess('تم حفظ الدرجات بنجاح');
+            
+            // تحديث معرفات الدرجات إذا تم إنشاؤها حديثًا
+            if (data.grade_ids) {
+                data.grade_ids.forEach(item => {
+                    const row = document.querySelector(`tr[data-student-id="${item.student_id}"]`);
+                    if (row) {
+                        row.dataset.gradeId = item.grade_id;
+                    }
+                });
+            }
+        } else {
+            showError(data.message || 'حدث خطأ أثناء حفظ الدرجات');
+        }
+    })
+    .catch(error => {
+        console.error('Error saving grades:', error);
+        showError('حدث خطأ أثناء حفظ الدرجات');
+    })
+    .finally(() => {
+        // إعادة تفعيل زر الحفظ
+        saveButton.disabled = false;
+        saveButton.innerHTML = originalText;
+    });
+}
+
+function exportGrades() {
+    const stage = document.getElementById('stageFilter').value;
+    const semester = document.getElementById('semesterFilter').value;
+    const courseId = document.getElementById('courseFilter').value;
+    
+    if (!stage || !semester || !courseId) {
+        showError('يرجى اختيار المرحلة والفصل والمقرر أولاً');
+        return;
+    }
+    
+    const courseName = document.getElementById('courseFilter').options[document.getElementById('courseFilter').selectedIndex].text;
+    const exportButton = document.getElementById('exportGradesBtn');
+    const originalText = exportButton.innerHTML;
+    exportButton.disabled = true;
+    exportButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> جار التصدير...';
+    
+    // إنشاء رابط تصدير الملف
+    window.location.href = `/admin/api/grades/export?course_id=${courseId}&stage=${stage}&semester=${semester}`;
+    
+    // إعادة تفعيل الزر بعد فترة
+    setTimeout(() => {
+        exportButton.disabled = false;
+        exportButton.innerHTML = originalText;
+    }, 2000);
+}
+
+// دالة مساعدة لإظهار/إخفاء العناصر
+function showElement(elementId, show) {
+    const element = document.getElementById(elementId);
+    if (show) {
+        element.classList.remove('d-none');
+    } else {
+        element.classList.add('d-none');
+    }
+}
+
+// دالة لعرض رسالة نجاح
+function showSuccess(message) {
+    const alert = document.createElement('div');
+    alert.className = 'alert alert-success alert-dismissible fade show';
+    alert.innerHTML = `
+        <i class="fas fa-check-circle me-2"></i> ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="إغلاق"></button>
+    `;
+    
+    // إضافة التنبيه في أعلى الصفحة
+    const cardBody = document.querySelector('.card-body');
+    cardBody.insertBefore(alert, cardBody.firstChild);
+    
+    // إزالة التنبيه بعد 3 ثوان
+    setTimeout(() => {
+        alert.classList.remove('show');
+        setTimeout(() => alert.remove(), 300);
+    }, 3000);
+}
+
+// دالة لعرض رسالة خطأ
+function showError(message) {
+    const alert = document.createElement('div');
+    alert.className = 'alert alert-danger alert-dismissible fade show';
+    alert.innerHTML = `
+        <i class="fas fa-exclamation-circle me-2"></i> ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="إغلاق"></button>
+    `;
+    
+    // إضافة التنبيه في أعلى الصفحة
+    const cardBody = document.querySelector('.card-body');
+    cardBody.insertBefore(alert, cardBody.firstChild);
+    
+    // إزالة التنبيه بعد 3 ثوان
+    setTimeout(() => {
+        alert.classList.remove('show');
+        setTimeout(() => alert.remove(), 300);
+    }, 3000);
+}
+</script>
+{% endblock %}

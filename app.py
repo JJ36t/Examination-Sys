@@ -1,13 +1,25 @@
-from flask import Flask, render_template, redirect, url_for, flash, request, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file, make_response, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-import os
-from datetime import datetime
-import sqlite3
-import pandas as pd
-import json
 from werkzeug.utils import secure_filename
+from flask_wtf import FlaskForm
+from wtforms import StringField, PasswordField, BooleanField, SubmitField, IntegerField, SelectField
+from wtforms.validators import DataRequired, Email, EqualTo, ValidationError
+import os
+import sqlite3
+import secrets
+from datetime import datetime, timedelta
+import pandas as pd
+import io
+import csv
+import json
+from sqlalchemy import inspect
+import xlsxwriter
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 
 # تكوين مجلد لتخزين الملفات المرفوعة
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
@@ -34,13 +46,40 @@ class User(db.Model, UserMixin):
     username = db.Column(db.String(100), unique=True, nullable=False)
     password_hash = db.Column(db.String(200), nullable=False)
     name = db.Column(db.String(100), nullable=False)
-    user_type = db.Column(db.String(20), nullable=False)  # 'instructor' or 'student'
+    user_type = db.Column(db.String(20), nullable=False)  # 'instructor', 'student', 'admin'
     
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
         
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+# نموذج للإعدادات
+class Settings(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(100), unique=True, nullable=False)
+    value = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.String(200))
+    
+    @staticmethod
+    def get_setting(key, default=None):
+        setting = Settings.query.filter_by(key=key).first()
+        if setting:
+            return setting.value
+        return default
+    
+    @staticmethod
+    def set_setting(key, value, description=None):
+        setting = Settings.query.filter_by(key=key).first()
+        if setting:
+            setting.value = value
+            if description:
+                setting.description = description
+        else:
+            setting = Settings(key=key, value=value, description=description)
+            db.session.add(setting)
+        db.session.commit()
+        return True
 
 class Student(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -80,7 +119,7 @@ class Grade(db.Model):
     def grade_evaluation(self):
         total = self.total
         if total < 50:
-            return "ضعيف"
+            return "راسب"
         elif total < 60:
             return "مقبول"
         elif total < 70:
@@ -99,10 +138,24 @@ def load_user(user_id):
 # Routes
 @app.route('/')
 def index():
+    # قم دائمًا بعرض صفحة تسجيل الدخول بغض النظر عن حالة المستخدم
+    # حتى لو كان مسجل الدخول بالفعل، سيظهر له صفحة تسجيل الدخول عند فتح الرابط الرئيسي
+    # إذا كان يريد الوصول إلى لوحة التحكم، فسيحتاج إلى النقر على الرابط المناسب
+    if current_user.is_authenticated:
+        logout_user()  # تسجيل خروج المستخدم الحالي
     return redirect(url_for('login'))
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    if current_user.is_authenticated:
+        # التوجيه بناءً على نوع المستخدم
+        if current_user.user_type == 'admin':
+            return redirect(url_for('admin_dashboard'))
+        elif current_user.user_type == 'instructor':
+            return redirect(url_for('instructor_dashboard'))
+        else:  # student
+            return redirect(url_for('student_dashboard'))
+    
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
@@ -112,9 +165,12 @@ def login():
         
         if user and user.check_password(password) and user.user_type == user_type:
             login_user(user)
-            if user.user_type == 'instructor':
+            # التوجيه بناءً على نوع المستخدم
+            if user.user_type == 'admin':
+                return redirect(url_for('admin_dashboard'))
+            elif user.user_type == 'instructor':
                 return redirect(url_for('instructor_dashboard'))
-            else:
+            else:  # student
                 return redirect(url_for('student_dashboard'))
         else:
             flash('خطأ في اسم المستخدم أو كلمة المرور أو نوع المستخدم', 'danger')
@@ -159,30 +215,66 @@ def student_dashboard():
         flash('لم يتم العثور على بيانات الطالب', 'danger')
         return redirect(url_for('login'))
     
-    stages = [1, 2, 3, 4]
+    # ترتيب المراحل بحيث تأتي المرحلة الحالية للطالب أولاً، ثم المراحل السابقة، ثم المراحل المستقبلية
+    current_stage = student.stage
+    stages = []
+    
+    # إضافة المرحلة الحالية أولاً
+    stages.append(current_stage)
+    
+    # إضافة المراحل السابقة بترتيب تنازلي
+    for stage in range(current_stage-1, 0, -1):
+        stages.append(stage)
+    
+    # إضافة المراحل المستقبلية
+    for stage in range(current_stage+1, 5):
+        stages.append(stage)
+        
     semesters = [1, 2]
     
     all_grades = {}
     stage_gpas = {}  # لتخزين المعدل النهائي لكل مرحلة
     
+    # معلومات إضافية حول الطالب لعرضها في الواجهة
+    student_info = {
+        'name': current_user.name,
+        'id': student.student_id,
+        'current_stage': current_stage
+    }
+    
     for stage in stages:
         all_grades[stage] = {}
-        # حساب المعدل النهائي للمرحلة
-        stage_gpas[stage] = calculate_stage_gpa(student.id, stage)
+        
+        # حساب المعدل النهائي للمرحلة - يمكن أن يكون رقماً أو نصاً "راسب"
+        try:
+            stage_gpas[stage] = calculate_stage_gpa(student.id, stage)
+        except Exception as e:
+            app.logger.error(f"خطأ في حساب معدل المرحلة {stage}: {str(e)}")
+            # في حالة حدوث خطأ، استخدم قيمة افتراضية
+            stage_gpas[stage] = 0
         
         for semester in semesters:
-            courses = Course.query.filter_by(stage=stage, semester=semester).all()
-            grades = []
-            for course in courses:
-                grade = Grade.query.filter_by(student_id=student.id, course_id=course.id).first()
-                if grade:
-                    grades.append({
-                        'course': course,
-                        'grade': grade
-                    })
-            all_grades[stage][semester] = grades
+            semester_grades = []
+            try:
+                courses = Course.query.filter_by(stage=stage, semester=semester).all()
+                for course in courses:
+                    grade = Grade.query.filter_by(student_id=student.id, course_id=course.id).first()
+                    if grade:
+                        semester_grades.append({
+                            'course': course,
+                            'grade': grade
+                        })
+            except Exception as e:
+                app.logger.error(f"خطأ في جلب درجات الكورس {semester} للمرحلة {stage}: {str(e)}")
+            
+            all_grades[stage][semester] = semester_grades
     
-    return render_template('student_dashboard.html', all_grades=all_grades, stages=stages, semesters=semesters, stage_gpas=stage_gpas)
+    return render_template('student_dashboard.html', 
+                           all_grades=all_grades, 
+                           stages=stages, 
+                           semesters=semesters, 
+                           stage_gpas=stage_gpas, 
+                           student_info=student_info)
 
 @app.route('/get_students_by_stage_semester', methods=['POST'])
 @login_required
@@ -196,9 +288,18 @@ def get_students_by_stage_semester():
     if not stage or not semester:
         return jsonify({'error': 'Missing parameters'}), 400
     
-    # تعديل: جلب جميع الطلاب بدلاً من تصفية حسب المرحلة
-    students = Student.query.order_by(Student.student_id).all()
-    courses = Course.query.filter_by(stage=stage, semester=semester).all()
+    # تحويل المعلمات إلى أرقام
+    stage = int(stage)
+    semester = int(semester)
+    
+    # تعديل هنا: جلب الطلاب في المرحلة المحددة فقط
+    students = Student.query.filter_by(stage=stage).all()
+    
+    # جلب المواد الدراسية للمرحلة والكورس المحددين
+    if semester == 1:
+        courses = Course.query.filter_by(stage=stage, semester=semester).all()
+    else:
+        courses = Course.query.filter_by(stage=stage, semester=semester).all()
     
     result = []
     for student in students:
@@ -209,7 +310,7 @@ def get_students_by_stage_semester():
         
         # حساب المعدل النهائي للمرحلة (فقط إذا كان الكورس الثاني)
         stage_gpa = None
-        if semester == '2' or semester == 2:
+        if semester == 2:
             stage_gpa = calculate_stage_gpa(student.id, stage)
         
         student_data = {
@@ -217,36 +318,30 @@ def get_students_by_stage_semester():
             'name': user.name,
             'student_id': student.student_id,
             'grades': [],
-            'semester_gpa': round(semester_gpa, 4),
-            'stage_gpa': round(stage_gpa, 4) if stage_gpa is not None else None
+            'semester_gpa': semester_gpa,
+            'stage_gpa': stage_gpa,
+            'has_failed_courses': False  # قيمة افتراضية، سيتم تحديثها لاحقاً
         }
         
         for course in courses:
             grade = Grade.query.filter_by(student_id=student.id, course_id=course.id).first()
-            if not grade:
-                # Create empty grade if not exists
-                grade = Grade(
-                    student_id=student.id,
-                    course_id=course.id,
-                    coursework=0,
-                    final_exam=0,
-                    decision_marks=0,
-                    academic_year=f"{datetime.now().year-1}/{datetime.now().year}"
-                )
-                db.session.add(grade)
-                db.session.commit()
-            
-            student_data['grades'].append({
-                'grade_id': grade.id,
-                'course_id': course.id,
-                'course_name': course.name,
-                'coursework': grade.coursework,
-                'final_exam': grade.final_exam,
-                'decision_marks': grade.decision_marks,
-                'units': course.units,
-                'total': grade.total,
-                'evaluation': grade.grade_evaluation
-            })
+            if grade:
+                # التحقق مما إذا كان الطالب راسباً في هذه المادة
+                total_grade = grade.total
+                if total_grade < 50:
+                    student_data['has_failed_courses'] = True
+                
+                student_data['grades'].append({
+                    'grade_id': grade.id,
+                    'course_id': course.id,
+                    'course_name': course.name,
+                    'coursework': grade.coursework,
+                    'final_exam': grade.final_exam,
+                    'decision_marks': grade.decision_marks,
+                    'units': course.units,
+                    'total': grade.total,
+                    'evaluation': grade.grade_evaluation
+                })
         
         result.append(student_data)
     
@@ -287,12 +382,18 @@ def search_student():
             'id': student.id,
             'name': user.name,
             'student_id': student.student_id,
-            'grades': []
+            'grades': [],
+            'has_failed_courses': False  # قيمة افتراضية، سيتم تحديثها لاحقاً
         }
         
         for course in courses:
             grade = Grade.query.filter_by(student_id=student.id, course_id=course.id).first()
             if grade:
+                # التحقق مما إذا كان الطالب راسباً في هذه المادة
+                total_grade = grade.total
+                if total_grade < 50:
+                    student_data['has_failed_courses'] = True
+                
                 student_data['grades'].append({
                     'grade_id': grade.id,
                     'course_id': course.id,
@@ -359,25 +460,43 @@ def instructor_reports():
     
     return render_template('instructor_reports.html')
 
-@app.route('/get_courses', methods=['POST'])
+@app.route('/api/admin/courses', methods=['GET', 'POST'])
 @login_required
 def get_courses():
-    if current_user.user_type != 'instructor':
+    if current_user.user_type != 'instructor' and current_user.user_type != 'admin':
         return jsonify({'error': 'Unauthorized'}), 403
     
-    stage = request.form.get('stage')
-    semester = request.form.get('semester')
+    # الحصول على المعلمات من النموذج أو معلمات الاستعلام
+    stage = request.form.get('stage') or request.args.get('stage')
+    semester = request.form.get('semester') or request.args.get('semester')
+    search = request.form.get('search') or request.args.get('search', '')
     
+    # التحقق من وجود معلمات المرحلة والفصل
     if not stage or not semester:
-        return jsonify({'error': 'Missing parameters'}), 400
+        # إذا كان الطلب للبحث، فلا نشترط توفر المرحلة والفصل
+        if request.args.get('search'):
+            courses = Course.query
+            if search:
+                courses = courses.filter(Course.name.ilike(f'%{search}%'))
+        else:
+            return jsonify({'error': 'المعلمات مفقودة - يرجى تحديد المرحلة والفصل'}), 400
+    else:
+        # البحث عن المقررات بالمرحلة والفصل
+        courses = Course.query.filter_by(stage=stage, semester=semester)
+        if search:
+            courses = courses.filter(Course.name.ilike(f'%{search}%'))
     
-    courses = Course.query.filter_by(stage=stage, semester=semester).all()
+    # تنفيذ الاستعلام
+    courses = courses.all()
     
+    # بناء النتيجة
     result = []
     for course in courses:
         result.append({
             'id': course.id,
             'name': course.name,
+            'stage': course.stage,
+            'semester': course.semester,
             'units': course.units
         })
     
@@ -485,8 +604,9 @@ def get_filtered_students():
             'failed_courses': failed_courses,
             'total_courses': len(student_grades),
             'evaluation': overall_evaluation,
-            'semester_gpa': round(semester_gpa, 4),
-            'stage_gpa': round(stage_gpa, 4) if stage_gpa is not None else None
+            'semester_gpa': semester_gpa,
+            'stage_gpa': stage_gpa,
+            'has_failed_courses': failed_courses > 0
         }
         
         result.append(student_data)
@@ -591,8 +711,9 @@ def get_all_students():
             'failed_courses': failed_courses,
             'total_courses': len(student_grades),
             'evaluation': overall_evaluation,
-            'semester_gpa': round(calculate_semester_gpa(student.id, stage, semester), 4),
-            'stage_gpa': round(calculate_stage_gpa(student.id, stage), 4) if stage else None
+            'semester_gpa': calculate_semester_gpa(student.id, stage, semester),
+            'stage_gpa': calculate_stage_gpa(student.id, stage) if stage else None,
+            'has_failed_courses': failed_courses > 0
         }
         
         result.append(student_data)
@@ -637,8 +758,8 @@ def add_student():
     # البحث عن آخر طالب بنفس السنة
     last_student = Student.query.filter(Student.student_id.like(f"{year_prefix}%")).order_by(Student.student_id.desc()).first()
     
-    if last_student:
-        # استخراج الرقم التسلسلي من رقم الطالب وزيادته بواحد
+    if last_student and last_student.student_id:
+        # استخراج الرقم من معرف الطالب إذا كان يحتوي على أرقام فقط
         try:
             # استخراج الرقم التسلسلي (آخر 3 أرقام)
             sequence_number = int(last_student.student_id[-3:])
@@ -648,7 +769,7 @@ def add_student():
             # إذا كان هناك خطأ في تنسيق الرقم، ابدأ من 001
             student_id = f"{year_prefix}001"
     else:
-        # إذا لم يكن هناك طلاب لهذه السنة، ابدأ من 001
+        # إذا لم يكن هناك طلاب بالفعل، ابدأ من 001
         student_id = f"{year_prefix}001"
     
     # التحقق من عدم وجود رقم طالب مكرر
@@ -673,7 +794,7 @@ def add_student():
             stage=1  # تعيين المرحلة الأولى افتراضيًا
         )
         db.session.add(student)
-        db.session.commit()
+        success_count = 1
         
         # إنشاء سجلات درجات فارغة للطالب
         courses = Course.query.filter_by(stage=1).all()  # المرحلة الأولى افتراضيًا
@@ -709,7 +830,7 @@ def add_student():
 @app.route('/get_all_students_for_modification')
 @login_required
 def get_all_students_for_modification():
-    if current_user.user_type != 'instructor':
+    if current_user.user_type not in ['instructor', 'admin']:
         return jsonify({'error': 'غير مصرح لك بالوصول إلى هذه البيانات'}), 403
     
     students = Student.query.order_by(Student.stage, Student.student_id).all()
@@ -877,6 +998,8 @@ def calculate_stage_gpa(student_id, stage):
     """
     حساب المعدل النهائي للمرحلة باستخدام المعادلة:
     GPA = ∑(درجة المادة × عدد وحدات المادة) / ∑(عدد وحدات المواد)
+    
+    إذا كان الطالب راسباً في أي مادة، يتم إرجاع "راسب" بدلاً من المعدل
     """
     # جلب جميع المقررات للمرحلة المحددة
     courses = Course.query.filter_by(stage=stage).all()
@@ -886,16 +1009,25 @@ def calculate_stage_gpa(student_id, stage):
     
     total_weighted_grades = 0
     total_units = 0
+    has_failed_course = False
     
     for course in courses:
         # جلب درجة الطالب لهذا المقرر
         grade = Grade.query.filter_by(student_id=student_id, course_id=course.id).first()
         
         if grade:
+            # التحقق مما إذا كان الطالب راسباً في هذه المادة
+            if grade.total < 50:
+                has_failed_course = True
+            
             # حساب الدرجة المرجحة (درجة المادة × عدد وحدات المادة)
             weighted_grade = grade.total * course.units
             total_weighted_grades += weighted_grade
             total_units += course.units
+    
+    # إذا كان الطالب راسباً في أي مادة، أرجع "راسب" بدلاً من المعدل
+    if has_failed_course:
+        return "راسب"
     
     # حساب المعدل النهائي
     if total_units > 0:
@@ -908,6 +1040,8 @@ def calculate_semester_gpa(student_id, stage, semester):
     """
     حساب المعدل النهائي للكورس باستخدام المعادلة:
     GPA = ∑(درجة المادة × عدد وحدات المادة) / ∑(عدد وحدات المواد)
+    
+    إذا كان الطالب راسباً في أي مادة في الكورس الثاني، يتم إرجاع "راسب" بدلاً من المعدل
     """
     # جلب جميع المقررات للمرحلة والكورس المحددين
     courses = Course.query.filter_by(stage=stage, semester=semester).all()
@@ -917,16 +1051,25 @@ def calculate_semester_gpa(student_id, stage, semester):
     
     total_weighted_grades = 0
     total_units = 0
+    has_failed_course = False
     
     for course in courses:
         # جلب درجة الطالب لهذا المقرر
         grade = Grade.query.filter_by(student_id=student_id, course_id=course.id).first()
         
         if grade:
+            # التحقق مما إذا كان الطالب راسباً في هذه المادة وفي الكورس الثاني
+            if semester == 2 and grade.total < 50:
+                has_failed_course = True
+            
             # حساب الدرجة المرجحة (درجة المادة × عدد وحدات المادة)
             weighted_grade = grade.total * course.units
             total_weighted_grades += weighted_grade
             total_units += course.units
+    
+    # إذا كان الطالب راسباً في أي مادة من الكورس الثاني، أرجع "راسب" بدلاً من المعدل
+    if has_failed_course:
+        return "راسب"
     
     # حساب المعدل النهائي
     if total_units > 0:
@@ -944,38 +1087,42 @@ def data_parser():
     if current_user.user_type != 'instructor':
         flash('غير مصرح لك بالوصول إلى هذه الصفحة', 'danger')
         return redirect(url_for('login'))
-    
     return render_template('data_parser.html')
 
 @app.route('/upload_file', methods=['POST'])
 @login_required
 def upload_file():
     if current_user.user_type != 'instructor':
-        return jsonify({'error': 'غير مصرح لك برفع الملفات'}), 403
+        flash('غير مصرح لك برفع الملفات', 'danger')
+        return redirect(url_for('login'))
     
     try:
         # التحقق من وجود ملف في الطلب
         if 'file' not in request.files:
             app.logger.error("لم يتم تحديد ملف في الطلب")
-            return jsonify({'error': 'لم يتم تحديد ملف'}), 400
+            flash('لم يتم تحديد ملف', 'danger')
+            return redirect(url_for('data_parser'))
         
         file = request.files['file']
         
         # التحقق من اختيار ملف
         if file.filename == '':
             app.logger.error("لم يتم اختيار ملف")
-            return jsonify({'error': 'لم يتم اختيار ملف'}), 400
+            flash('لم يتم اختيار ملف', 'danger')
+            return redirect(url_for('data_parser'))
         
         # التحقق من امتداد الملف
         if not allowed_file(file.filename):
             app.logger.error(f"امتداد الملف غير مسموح به: {file.filename}")
-            return jsonify({'error': 'امتداد الملف غير مسموح به. الامتدادات المسموح بها هي: csv, xlsx, xls'}), 400
+            flash('امتداد الملف غير مسموح به. الامتدادات المسموح بها هي: csv, xlsx, xls', 'danger')
+            return redirect(url_for('data_parser'))
         
         # الحصول على نوع الجدول المستهدف
         table_type = request.form.get('table_type')
         if not table_type or table_type not in ['students', 'grades', 'courses']:
-            app.logger.error(f"نوع الجدول غير صالح: {table_type}")
-            return jsonify({'error': 'نوع الجدول غير صالح'}), 400
+            app.logger.error(f"نوع جدول غير صالح: {table_type}")
+            flash('نوع الجدول غير صالح', 'danger')
+            return redirect(url_for('data_parser'))
         
         # التأكد من وجود مجلد التحميل
         if not os.path.exists(app.config['UPLOAD_FOLDER']):
@@ -984,7 +1131,8 @@ def upload_file():
                 app.logger.info(f"تم إنشاء مجلد التحميل: {app.config['UPLOAD_FOLDER']}")
             except Exception as e:
                 app.logger.error(f"فشل في إنشاء مجلد التحميل: {str(e)}")
-                return jsonify({'error': f'فشل في إنشاء مجلد التحميل: {str(e)}'}), 500
+                flash(f'فشل في إنشاء مجلد التحميل: {str(e)}', 'danger')
+                return redirect(url_for('data_parser'))
         
         file_path = None
         try:
@@ -1008,7 +1156,8 @@ def upload_file():
             # التحقق من أن الملف يحتوي على بيانات
             if df.empty:
                 app.logger.error("الملف لا يحتوي على بيانات")
-                return jsonify({'error': 'الملف لا يحتوي على بيانات'}), 400
+                flash('الملف لا يحتوي على بيانات', 'danger')
+                return redirect(url_for('data_parser'))
             
             # إعداد معلومات الأعمدة المطلوبة لكل نوع جدول
             required_columns = get_required_columns(table_type)
@@ -1025,24 +1174,27 @@ def upload_file():
             session['table_type'] = table_type
             
             app.logger.info(f"تم تحليل الملف بنجاح: {len(all_data)} صفوف")
-            return jsonify({
-                'success': True,
-                'preview': preview_data,
-                'total_rows': len(all_data),
-                'columns': df.columns.tolist(),
-                'required_columns': required_columns,
-                'missing_columns': missing_columns
-            })
+            
+            # عرض البيانات في القالب
+            return render_template('data_parser.html', 
+                                preview_data=preview_data,
+                                total_rows=len(all_data),
+                                columns=df.columns.tolist(),
+                                required_columns=required_columns,
+                                missing_columns=missing_columns)
         
         except pd.errors.EmptyDataError:
             app.logger.error("الملف فارغ أو لا يحتوي على بيانات صالحة")
-            return jsonify({'error': 'الملف فارغ أو لا يحتوي على بيانات صالحة'}), 400
+            flash('الملف فارغ أو لا يحتوي على بيانات صالحة', 'danger')
+            return redirect(url_for('data_parser'))
         except pd.errors.ParserError:
             app.logger.error("لا يمكن تحليل الملف")
-            return jsonify({'error': 'لا يمكن تحليل الملف. تأكد من أن الملف بالتنسيق الصحيح'}), 400
+            flash('لا يمكن تحليل الملف. تأكد من أن الملف بالتنسيق الصحيح', 'danger')
+            return redirect(url_for('data_parser'))
         except Exception as e:
             app.logger.error(f"خطأ في معالجة الملف: {str(e)}")
-            return jsonify({'error': f'حدث خطأ أثناء معالجة الملف: {str(e)}'}), 500
+            flash(f'حدث خطأ أثناء معالجة الملف: {str(e)}', 'danger')
+            return redirect(url_for('data_parser'))
         finally:
             # حذف الملف بعد معالجته
             if file_path and os.path.exists(file_path):
@@ -1054,24 +1206,16 @@ def upload_file():
     
     except Exception as e:
         app.logger.error(f"خطأ عام في رفع الملف: {str(e)}")
-        return jsonify({'error': f'حدث خطأ غير متوقع: {str(e)}'}), 500
-
-def get_required_columns(table_type):
-    """تحديد الأعمدة المطلوبة لكل نوع جدول"""
-    if table_type == 'students':
-        return ['name', 'username', 'student_id', 'stage']
-    elif table_type == 'grades':
-        return ['student_id', 'course_id', 'first_attempt', 'second_attempt', 'final_grade']
-    elif table_type == 'courses':
-        return ['name', 'stage', 'semester']
-    return []
+        flash(f'حدث خطأ غير متوقع: {str(e)}', 'danger')
+        return redirect(url_for('data_parser'))
 
 @app.route('/import_data', methods=['POST'])
 @login_required
 def import_data():
     if current_user.user_type != 'instructor':
         app.logger.error(f"محاولة استيراد بيانات من قبل مستخدم غير مصرح له: {current_user.username}")
-        return jsonify({'error': 'غير مصرح لك باستيراد البيانات'}), 403
+        flash('غير مصرح لك باستيراد البيانات', 'danger')
+        return redirect(url_for('data_parser'))
     
     # استرجاع البيانات من الجلسة
     file_data_json = session.get('file_data')
@@ -1081,21 +1225,28 @@ def import_data():
     
     if not file_data_json:
         app.logger.error("لم يتم العثور على بيانات الملف في الجلسة")
-        return jsonify({'error': 'لم يتم العثور على بيانات الملف للاستيراد'}), 400
+        flash('لم يتم العثور على بيانات الملف للاستيراد', 'danger')
+        return redirect(url_for('data_parser'))
     
     if not table_type:
         app.logger.error("لم يتم العثور على نوع الجدول في الجلسة")
-        return jsonify({'error': 'لم يتم العثور على نوع الجدول للاستيراد'}), 400
+        flash('لم يتم العثور على نوع الجدول للاستيراد', 'danger')
+        return redirect(url_for('data_parser'))
     
     try:
         # تحويل البيانات من JSON إلى قائمة قواميس
         file_data = json.loads(file_data_json)
         app.logger.info(f"تم تحميل البيانات من الجلسة بنجاح، عدد السجلات: {len(file_data)}")
         
+        # تسجيل نمذوج البيانات للتصحيح
+        if len(file_data) > 0:
+            app.logger.info(f"نموذج من البيانات: {file_data[0]}")
+        
         # استيراد البيانات حسب نوع الجدول
         if table_type == 'students':
             app.logger.info("بدء استيراد بيانات الطلاب")
             result = import_students(file_data)
+            app.logger.info(f"نتيجة استيراد الطلاب: {result}")
         elif table_type == 'grades':
             app.logger.info("بدء استيراد بيانات الدرجات")
             result = import_grades(file_data)
@@ -1104,103 +1255,167 @@ def import_data():
             result = import_courses(file_data)
         else:
             app.logger.error(f"نوع جدول غير صالح: {table_type}")
-            return jsonify({'error': 'نوع الجدول غير صالح'}), 400
+            flash('نوع الجدول غير صالح', 'danger')
+            return redirect(url_for('data_parser'))
         
-        # حذف البيانات من الجلسة فقط إذا كانت عملية الاستيراد ناجحة
-        if result.get('success', False):
-            session.pop('file_data', None)
-            session.pop('table_type', None)
-            app.logger.info("تم حذف بيانات الملف من الجلسة بعد الاستيراد الناجح")
+        # حذف البيانات من الجلسة بعد الاستيراد
+        session.pop('file_data', None)
+        session.pop('table_type', None)
+        app.logger.info("تم حذف بيانات الملف من الجلسة بعد الاستيراد")
         
         app.logger.info(f"نتيجة الاستيراد: {result.get('success_count', 0)} سجل ناجح، {result.get('error_count', 0)} سجل فاشل")
-        return jsonify(result)
+        
+        # إضافة رسالة نجاح
+        if result.get('success_count', 0) > 0:
+            flash(f'تم استيراد {result.get("success_count")} سجل بنجاح', 'success')
+        else:
+            flash('لم يتم استيراد أي سجلات. تحقق من سجل الأخطاء.', 'warning')
+        
+        # عرض نتائج الاستيراد
+        return render_template('data_parser.html', import_results=result)
     
     except json.JSONDecodeError as e:
         app.logger.error(f"خطأ في تحليل بيانات JSON: {str(e)}")
-        return jsonify({'error': f'خطأ في تحليل بيانات الملف: {str(e)}'}), 500
+        flash(f'خطأ في تحليل بيانات الملف: {str(e)}', 'danger')
+        return redirect(url_for('data_parser'))
     except Exception as e:
-        app.logger.error(f"خطأ غير متوقع أثناء استيراد البيانات: {str(e)}")
         db.session.rollback()
         return jsonify({'error': f'حدث خطأ أثناء استيراد البيانات: {str(e)}'}), 500
 
+def get_required_columns(table_type):
+    """تحديد الأعمدة المطلوبة لكل نوع جدول"""
+    if table_type == 'students':
+        return ['name', 'username', 'student_id', 'stage']
+    elif table_type == 'grades':
+        return ['student_id', 'course_id', 'coursework', 'final_exam', 'decision_marks']
+    elif table_type == 'courses':
+        return ['name', 'stage', 'semester', 'units']
+    return []
+
 def import_students(data):
     """استيراد بيانات الطلاب"""
+    app.logger.info(f"بدء استيراد الطلاب، عدد السجلات المستلمة: {len(data)}")
     success_count = 0
     error_count = 0
     errors = []
     
+    # دالة مساعدة لتوليد رقم طالب جديد
+    def generate_student_id():
+        # البحث عن آخر طالب في قاعدة البيانات
+        latest_student = Student.query.order_by(Student.id.desc()).first()
+        
+        if latest_student and latest_student.student_id:
+            # استخراج الرقم من معرف الطالب إذا كان يحتوي على أرقام فقط
+            try:
+                # استخراج الرقم التسلسلي (آخر 3 أرقام)
+                sequence_number = int(latest_student.student_id[-3:])
+                new_sequence_number = sequence_number + 1
+                student_id = f"{latest_student.student_id[:-3]}{new_sequence_number:03d}"
+            except (ValueError, IndexError):
+                # إذا كان هناك خطأ في تنسيق الرقم، ابدأ من 001
+                student_id = f"{latest_student.student_id[:-3]}001"
+        else:
+            # إذا لم يكن هناك طلاب بالفعل، ابدأ من 001
+            student_id = "CS2023001"
+        
+        return student_id
+    
     for i, row in enumerate(data):
         try:
-            # التحقق من وجود البيانات المطلوبة
-            if not all(key in row and row[key] for key in ['name', 'username', 'student_id', 'stage']):
+            app.logger.info(f"معالجة السجل {i+1}: {row}")
+            # التحقق من وجود البيانات المطلوبة (باستثناء student_id الذي يمكن توليده تلقائياً)
+            required_fields = ['name', 'username', 'stage']
+            if not all(key in row and str(row[key]).strip() for key in required_fields):
+                missing_keys = [key for key in required_fields if key not in row or not str(row[key]).strip()]
+                app.logger.error(f"بيانات غير مكتملة في السجل {i+1}: الحقول المفقودة: {missing_keys}")
                 errors.append({
                     'row': i + 1,
-                    'error': 'بيانات غير مكتملة أو فارغة'
+                    'error': f'بيانات غير مكتملة أو فارغة. الحقول المفقودة: {missing_keys}'
                 })
                 error_count += 1
                 continue
             
             # التأكد من أن المرحلة رقم صحيح
             try:
-                stage = int(row['stage'])
+                stage = int(float(row['stage']))
                 if stage < 1 or stage > 4:
+                    app.logger.error(f"المرحلة غير صالحة في السجل {i+1}: {stage}")
                     errors.append({
                         'row': i + 1,
                         'error': f'المرحلة غير صالحة. يجب أن تكون بين 1 و 4'
                     })
                     error_count += 1
                     continue
-            except (ValueError, TypeError):
+            except (ValueError, TypeError) as e:
+                app.logger.error(f"خطأ في تحويل المرحلة في السجل {i+1}: {str(e)}")
                 errors.append({
                     'row': i + 1,
-                    'error': f'المرحلة يجب أن تكون رقماً صحيحاً'
+                    'error': f'المرحلة يجب أن تكون رقماً صحيحاً: {str(e)}'
                 })
                 error_count += 1
                 continue
             
+            # تنظيف البيانات
+            student_name = str(row['name']).strip()
+            student_username = str(row['username']).strip()
+            
+            # التحقق من رقم الطالب وتوليده إذا كان فارغاً أو nan
+            student_id = row.get('student_id', '')
+            # التحقق من قيمة NaN باستخدام pandas
+            if pd.isna(student_id) or str(student_id).strip() == '' or str(student_id).lower().strip() == 'nan':
+                student_id = generate_student_id()
+                app.logger.info(f"تم توليد رقم طالب تلقائياً للسجل {i+1}: {student_id}")
+            else:
+                student_id = str(student_id).strip()
+            
             # التحقق من عدم وجود اسم مستخدم مكرر
-            if User.query.filter_by(username=row['username']).first():
+            if User.query.filter_by(username=student_username).first():
+                app.logger.error(f"اسم المستخدم موجود بالفعل في السجل {i+1}: {student_username}")
                 errors.append({
                     'row': i + 1,
-                    'error': f'اسم المستخدم {row["username"]} موجود بالفعل'
+                    'error': f'اسم المستخدم {student_username} موجود بالفعل'
                 })
                 error_count += 1
                 continue
             
             # التحقق من عدم وجود رقم طالب مكرر
-            if Student.query.filter_by(student_id=row['student_id']).first():
+            if Student.query.filter_by(student_id=student_id).first():
+                app.logger.error(f"رقم الطالب موجود بالفعل في السجل {i+1}: {student_id}")
                 errors.append({
                     'row': i + 1,
-                    'error': f'رقم الطالب {row["student_id"]} موجود بالفعل'
+                    'error': f'رقم الطالب {student_id} موجود بالفعل'
                 })
                 error_count += 1
                 continue
             
             # إنشاء مستخدم جديد
             user = User(
-                name=row['name'],
-                username=row['username'],
+                username=student_username,
+                name=student_name,
                 user_type='student'
             )
             
             # تعيين كلمة مرور افتراضية
-            password = row.get('password', 'password')
+            password = str(row.get('password', 'password')).strip()
             user.set_password(password)
             
+            app.logger.info(f"إضافة مستخدم جديد: {student_name}, {student_username}")
             db.session.add(user)
             db.session.flush()  # للحصول على معرف المستخدم
             
             # إنشاء طالب جديد
             student = Student(
                 user_id=user.id,
-                student_id=row['student_id'],
+                student_id=student_id,
                 stage=stage
             )
             
+            app.logger.info(f"إضافة طالب جديد: ID={student_id}, المرحلة={stage}")
             db.session.add(student)
             success_count += 1
             
         except Exception as e:
+            app.logger.error(f"خطأ غير متوقع في السجل {i+1}: {str(e)}")
             errors.append({
                 'row': i + 1,
                 'error': str(e)
@@ -1210,13 +1425,19 @@ def import_students(data):
     # حفظ التغييرات إذا كانت هناك عمليات ناجحة
     if success_count > 0:
         try:
+            app.logger.info(f"محاولة حفظ {success_count} طالب إلى قاعدة البيانات")
             db.session.commit()
+            app.logger.info("تم حفظ البيانات بنجاح")
         except Exception as e:
             db.session.rollback()
             return {
                 'success': False,
-                'error': f'حدث خطأ أثناء حفظ البيانات: {str(e)}'
+                'success_count': 0,
+                'error_count': error_count + success_count,
+                'errors': errors + [{'row': 'ALL', 'error': f'حدث خطأ أثناء حفظ البيانات: {str(e)}'}]
             }
+    else:
+        app.logger.info("لم تتم إضافة أي طالب")
     
     return {
         'success': True,
@@ -1230,20 +1451,22 @@ def import_grades(data):
     success_count = 0
     error_count = 0
     errors = []
+    current_year = datetime.now().year
+    academic_year = f"{current_year-1}-{current_year}"
     
     for i, row in enumerate(data):
         try:
             # التحقق من وجود البيانات المطلوبة
-            if not all(key in row for key in ['student_id', 'course_id']):
+            if not all(key in row for key in ['student_id', 'course_id', 'coursework', 'final_exam']):
                 errors.append({
                     'row': i + 1,
-                    'error': 'بيانات غير مكتملة'
+                    'error': 'بيانات غير مكتملة، يجب توفير (رقم الطالب، رقم المقرر، درجة أعمال الفصل، درجة الامتحان النهائي)'
                 })
                 error_count += 1
                 continue
             
             # البحث عن الطالب
-            student = Student.query.filter_by(student_id=row['student_id']).first()
+            student = Student.query.filter_by(student_id=str(row['student_id'])).first()
             if not student:
                 errors.append({
                     'row': i + 1,
@@ -1252,12 +1475,58 @@ def import_grades(data):
                 error_count += 1
                 continue
             
-            # البحث عن المقرر
-            course = Course.query.get(row['course_id'])
+            # البحث عن المقرر باستخدام المعرف المقدم
+            course = Course.query.get(int(row['course_id']))
             if not course:
                 errors.append({
                     'row': i + 1,
                     'error': f'المقرر برقم {row["course_id"]} غير موجود'
+                })
+                error_count += 1
+                continue
+            
+            # التحقق من أن الطالب في نفس مرحلة المقرر
+            if student.stage != course.stage:
+                errors.append({
+                    'row': i + 1,
+                    'error': f'الطالب في المرحلة {student.stage} بينما المقرر في المرحلة {course.stage}'
+                })
+                error_count += 1
+                continue
+            
+            # التحقق من صلاحية الدرجات
+            try:
+                coursework = int(row['coursework'])
+                final_exam = int(row['final_exam'])
+                decision_marks = int(row.get('decision_marks', 0))
+                
+                if not (0 <= coursework <= 50):
+                    errors.append({
+                        'row': i + 1,
+                        'error': f'درجة أعمال الفصل {coursework} خارج النطاق المسموح (0-50)'
+                    })
+                    error_count += 1
+                    continue
+                
+                if not (0 <= final_exam <= 50):
+                    errors.append({
+                        'row': i + 1,
+                        'error': f'درجة الامتحان النهائي {final_exam} خارج النطاق المسموح (0-50)'
+                    })
+                    error_count += 1
+                    continue
+                
+                if not (0 <= decision_marks <= 10):
+                    errors.append({
+                        'row': i + 1,
+                        'error': f'درجة القرار {decision_marks} خارج النطاق المسموح (0-10)'
+                    })
+                    error_count += 1
+                    continue
+            except ValueError:
+                errors.append({
+                    'row': i + 1,
+                    'error': 'تنسيق الدرجات غير صحيح، يجب أن تكون أرقامًا صحيحة'
                 })
                 error_count += 1
                 continue
@@ -1267,20 +1536,19 @@ def import_grades(data):
             
             if existing_grade:
                 # تحديث الدرجة الموجودة
-                if 'first_attempt' in row:
-                    existing_grade.first_attempt = row['first_attempt']
-                if 'second_attempt' in row:
-                    existing_grade.second_attempt = row['second_attempt']
-                if 'final_grade' in row:
-                    existing_grade.final_grade = row['final_grade']
+                existing_grade.coursework = coursework
+                existing_grade.final_exam = final_exam
+                existing_grade.decision_marks = decision_marks
+                existing_grade.academic_year = academic_year
             else:
                 # إنشاء درجة جديدة
                 grade = Grade(
                     student_id=student.id,
                     course_id=course.id,
-                    first_attempt=row.get('first_attempt'),
-                    second_attempt=row.get('second_attempt'),
-                    final_grade=row.get('final_grade')
+                    coursework=coursework,
+                    final_exam=final_exam,
+                    decision_marks=decision_marks,
+                    academic_year=academic_year
                 )
                 db.session.add(grade)
             
@@ -1313,7 +1581,7 @@ def import_courses(data):
     for i, row in enumerate(data):
         try:
             # التحقق من وجود البيانات المطلوبة
-            if not all(key in row for key in ['name', 'stage', 'semester']):
+            if not all(key in row for key in ['name', 'stage', 'semester', 'units']):
                 errors.append({
                     'row': i + 1,
                     'error': 'بيانات غير مكتملة'
@@ -1322,10 +1590,10 @@ def import_courses(data):
                 continue
             
             # التحقق من عدم وجود مقرر بنفس الاسم والمرحلة والفصل
-            existing_course = Course.query.filter_by(
-                name=row['name'],
-                stage=int(row['stage']),
-                semester=int(row['semester'])
+            existing_course = Course.query.filter(
+                Course.name == row['name'],
+                Course.stage == int(row['stage']),
+                Course.semester == int(row['semester'])
             ).first()
             
             if existing_course:
@@ -1340,7 +1608,8 @@ def import_courses(data):
             course = Course(
                 name=row['name'],
                 stage=int(row['stage']),
-                semester=int(row['semester'])
+                semester=int(row['semester']),
+                units=int(row['units'])
             )
             
             db.session.add(course)
@@ -1407,6 +1676,15 @@ def init_db():
         )
         instructor.set_password('password')
         db.session.add(instructor)
+        
+        # Add admin
+        admin = User(
+            username='admin',
+            name='Admin',
+            user_type='admin'
+        )
+        admin.set_password('password')
+        db.session.add(admin)
         
         # Add courses
         courses_data = [
@@ -1527,6 +1805,1168 @@ def init_db():
                     db.session.add(grade)
         
         db.session.commit()
+
+@app.route('/admin_dashboard')
+@login_required
+def admin_dashboard():
+    if current_user.user_type != 'admin':
+        flash('غير مصرح لك بالوصول إلى هذه الصفحة', 'danger')
+        return redirect(url_for('login'))
+    
+    # جلب إحصاءات للوحة التحكم
+    total_students = Student.query.count()
+    total_courses = Course.query.count()
+    total_users = User.query.count()
+    
+    # إحصاءات الطلاب حسب المرحلة
+    students_per_stage = []
+    for stage in range(1, 5):
+        count = Student.query.filter_by(stage=stage).count()
+        students_per_stage.append(count)
+    
+    return render_template('admin_dashboard.html', 
+                           active_page='dashboard',
+                           total_students=total_students,
+                           total_courses=total_courses,
+                           total_users=total_users,
+                           students_per_stage=students_per_stage)
+
+@app.route('/api/admin/stats')
+@login_required
+def admin_api_stats():
+    if current_user.user_type != 'admin':
+        return jsonify({'error': 'غير مصرح لك بالوصول'}), 403
+    
+    # إحصاءات أساسية
+    stats = {
+        'students': Student.query.count(),
+        'courses': Course.query.count(),
+        'active_users': User.query.count(),
+        'students_per_stage': [],
+    }
+    
+    # إحصاءات الطلاب حسب المرحلة
+    for stage in range(1, 5):
+        count = Student.query.filter_by(stage=stage).count()
+        stats['students_per_stage'].append(count)
+    
+    # آخر النشاطات (يمكن إضافة جدول للنشاطات لاحقًا)
+    stats['activities'] = [
+        {'user': 'النظام', 'action': 'تم تسجيل الدخول إلى لوحة التحكم', 'time': datetime.now().strftime('%Y-%m-%d %H:%M')}
+    ]
+    
+    return jsonify(stats)
+
+@app.route('/create_admin', methods=['GET', 'POST'])
+@login_required
+def create_admin():
+    if current_user.user_type != 'admin':
+        flash('غير مصرح لك بإنشاء حساب مدير', 'danger')
+        return redirect(url_for('login'))
+    
+    form = AdminRegistrationForm()
+    if form.validate_on_submit():
+        user = User(
+            name=form.name.data,
+            username=form.username.data,
+            user_type='admin'
+        )
+        user.set_password(form.password.data)
+        db.session.add(user)
+        db.session.commit()
+        flash('تم إنشاء حساب المدير بنجاح', 'success')
+        return redirect(url_for('admin_dashboard'))
+    
+    return render_template('create_admin.html', title='إنشاء حساب مدير', form=form)
+
+@app.route('/initialize_admin', methods=['GET', 'POST'])
+def initialize_admin():
+    # التحقق من عدم وجود حساب مدير
+    admin_exists = User.query.filter_by(user_type='admin').first() is not None
+    if admin_exists:
+        flash('تم إنشاء حساب مدير بالفعل', 'warning')
+        return redirect(url_for('login'))
+    
+    form = AdminRegistrationForm()
+    if form.validate_on_submit():
+        user = User(
+            username=form.username.data,
+            name=form.name.data,
+            user_type='admin'
+        )
+        user.set_password(form.password.data)
+        db.session.add(user)
+        db.session.commit()
+        flash('تم إنشاء حساب المدير الأول بنجاح', 'success')
+        return redirect(url_for('login'))
+    
+    return render_template('initialize_admin.html', title='إنشاء حساب المدير الأول', form=form)
+
+# نماذج للاستخدام في النماذج
+class LoginForm(FlaskForm):
+    username = StringField('اسم المستخدم', validators=[DataRequired()])
+    password = PasswordField('كلمة المرور', validators=[DataRequired()])
+    remember_me = BooleanField('تذكرني')
+    submit = SubmitField('تسجيل الدخول')
+
+class AdminRegistrationForm(FlaskForm):
+    name = StringField('الاسم الكامل', validators=[DataRequired()])
+    username = StringField('اسم المستخدم', validators=[DataRequired()])
+    password = PasswordField('كلمة المرور', validators=[DataRequired()])
+    confirm_password = PasswordField(
+        'تأكيد كلمة المرور', 
+        validators=[DataRequired(), EqualTo('password', message='يجب أن تتطابق كلمات المرور')]
+    )
+    submit = SubmitField('إنشاء حساب')
+    
+    def validate_username(self, username):
+        user = User.query.filter_by(username=username.data).first()
+        if user:
+            raise ValidationError('اسم المستخدم موجود بالفعل، الرجاء اختيار اسم آخر')
+
+@app.route('/create_default_admin')
+def create_default_admin():
+    # التحقق من وجود حساب مدير
+    admin_exists = User.query.filter_by(user_type='admin').first() is not None
+    
+    if not admin_exists:
+        # إنشاء حساب مدير جديد
+        admin = User(
+            username='admin',
+            name='Admin',
+            user_type='admin'
+        )
+        admin.set_password('admin123')
+        db.session.add(admin)
+        db.session.commit()
+        flash('تم إنشاء حساب المدير بنجاح. اسم المستخدم: admin، كلمة المرور: admin123', 'success')
+    else:
+        flash('حساب المدير موجود بالفعل', 'info')
+    
+    return redirect(url_for('login'))
+
+@app.route('/admin/students')
+@login_required
+def admin_students():
+    if current_user.user_type != 'admin':
+        flash('غير مصرح لك بالوصول إلى هذه الصفحة', 'danger')
+        return redirect(url_for('login'))
+    
+    return render_template('admin_students.html', active_page='students')
+
+@app.route('/admin/courses')
+@login_required
+def admin_courses():
+    if current_user.user_type != 'admin':
+        flash('غير مصرح لك بالوصول إلى هذه الصفحة', 'danger')
+        return redirect(url_for('login'))
+    
+    return render_template('admin_courses.html', active_page='courses')
+
+@app.route('/admin/grades')
+@login_required
+def admin_grades():
+    if current_user.user_type != 'admin':
+        flash('غير مصرح لك بالوصول إلى هذه الصفحة', 'danger')
+        return redirect(url_for('login'))
+    
+    return render_template('admin_grades.html', active_page='grades')
+
+@app.route('/admin/users')
+@login_required
+def admin_users():
+    if current_user.user_type != 'admin':
+        flash('غير مصرح لك بالوصول إلى هذه الصفحة', 'danger')
+        return redirect(url_for('login'))
+    
+    return render_template('admin_users.html', active_page='users')
+
+@app.route('/admin/reports')
+@login_required
+def admin_reports():
+    if current_user.user_type != 'admin':
+        flash('غير مصرح لك بالوصول إلى هذه الصفحة', 'danger')
+        return redirect(url_for('login'))
+    
+    return render_template('admin_reports.html', active_page='reports')
+
+@app.route('/admin/export_data')
+@login_required
+def admin_export_data():
+    if current_user.user_type != 'admin':
+        flash('غير مصرح لك بالوصول إلى هذه الصفحة', 'danger')
+        return redirect(url_for('login'))
+    
+    return render_template('admin_export_data.html', active_page='export_data')
+
+@app.route('/admin/settings')
+@login_required
+def admin_settings():
+    if current_user.user_type != 'admin':
+        flash('غير مصرح لك بالوصول إلى هذه الصفحة', 'danger')
+        return redirect(url_for('login'))
+    
+    # التحقق من وجود جدول الإعدادات وإنشائه إذا لم يكن موجوداً
+    initialize_settings()
+    
+    settings = {}
+    all_settings = Settings.query.all()
+    for setting in all_settings:
+        settings[setting.key] = setting.value
+    
+    return render_template('admin_settings.html', active_page='settings', settings=settings)
+
+@app.route('/api/admin/settings', methods=['GET'])
+@login_required
+def get_settings():
+    if current_user.user_type != 'admin':
+        return jsonify({'error': 'غير مصرح لك بالوصول'}), 403
+    
+    # جلب جميع الإعدادات
+    settings = {}
+    all_settings = Settings.query.all()
+    for setting in all_settings:
+        settings[setting.key] = {
+            'value': setting.value,
+            'description': setting.description
+        }
+    
+    return jsonify(settings)
+
+@app.route('/api/admin/settings/update', methods=['POST'])
+@login_required
+def update_settings():
+    if current_user.user_type != 'admin':
+        return jsonify({'error': 'غير مصرح لك بالوصول'}), 403
+    
+    try:
+        # استلام بيانات الإعدادات
+        settings_data = request.json
+        
+        # تحديث الإعدادات
+        for key, value in settings_data.items():
+            Settings.set_setting(key, value)
+        
+        return jsonify({'success': True, 'message': 'تم تحديث الإعدادات بنجاح'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/admin/backup', methods=['GET'])
+@login_required
+def backup_database():
+    if current_user.user_type != 'admin':
+        return jsonify({'error': 'غير مصرح لك بالوصول'}), 403
+    
+    try:
+        # إنشاء نسخة احتياطية من البيانات
+        students = Student.query.all()
+        courses = Course.query.all()
+        grades = Grade.query.all()
+        users = User.query.filter(User.user_type != 'admin').all()
+        settings = Settings.query.all()
+        
+        backup_data = {
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'students': [],
+            'courses': [],
+            'grades': [],
+            'users': [],
+            'settings': []
+        }
+        
+        # تخزين بيانات الطلاب
+        for student in students:
+            user = User.query.get(student.user_id)
+            backup_data['students'].append({
+                'student_id': student.student_id,
+                'name': user.name,
+                'username': user.username,
+                'stage': student.stage
+            })
+        
+        # تخزين بيانات المقررات
+        for course in courses:
+            backup_data['courses'].append({
+                'name': course.name,
+                'stage': course.stage,
+                'semester': course.semester,
+                'units': course.units
+            })
+        
+        # تخزين بيانات الدرجات
+        for grade in grades:
+            student = Student.query.get(grade.student_id)
+            course = Course.query.get(grade.course_id)
+            backup_data['grades'].append({
+                'student_id': student.student_id if student else None,
+                'course_name': course.name if course else None,
+                'coursework': grade.coursework,
+                'final_exam': grade.final_exam,
+                'decision_marks': grade.decision_marks,
+                'academic_year': grade.academic_year
+            })
+        
+        # تخزين بيانات المستخدمين (بدون كلمات المرور)
+        for user in users:
+            backup_data['users'].append({
+                'username': user.username,
+                'name': user.name,
+                'user_type': user.user_type
+            })
+        
+        # تخزين الإعدادات
+        for setting in settings:
+            backup_data['settings'].append({
+                'key': setting.key,
+                'value': setting.value,
+                'description': setting.description
+            })
+        
+        # إنشاء ملف مؤقت للتنزيل
+        response = make_response(jsonify(backup_data))
+        response.headers['Content-Disposition'] = 'attachment; filename=backup.json'
+        response.headers['Content-Type'] = 'application/json'
+        
+        return response
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/admin/get_users')
+@login_required
+def admin_get_users():
+    if current_user.user_type != 'admin':
+        return jsonify({'error': 'غير مصرح لك بالوصول إلى بيانات المستخدمين'}), 403
+    
+    user_type = request.args.get('user_type', '')
+    
+    query = User.query
+    if user_type:
+        query = query.filter_by(user_type=user_type)
+    
+    users = query.all()
+    result = []
+    
+    for user in users:
+        user_data = {
+            'id': user.id,
+            'name': user.name,
+            'username': user.username,
+            'user_type': user.user_type
+        }
+        
+        # إضافة بيانات الطالب إذا كان المستخدم طالب
+        if user.user_type == 'student':
+            student = Student.query.filter_by(user_id=user.id).first()
+            if student:
+                user_data['student_id'] = student.student_id
+                user_data['stage'] = student.stage
+        
+        result.append(user_data)
+    
+    return jsonify(result)
+
+@app.route('/admin/api/courses', methods=['GET', 'POST'])
+@login_required
+def admin_get_courses():
+    # فلترة حسب المرحلة والفصل إذا تم تحديدها
+    stage = request.args.get('stage', type=int)
+    semester = request.args.get('semester', type=int)
+    search = request.args.get('search', '')
+    
+    query = Course.query
+    
+    if stage:
+        query = query.filter_by(stage=stage)
+    if semester:
+        query = query.filter_by(semester=semester)
+    if search:
+        query = query.filter(Course.name.ilike(f'%{search}%'))
+    
+    courses = query.all()
+    
+    result = []
+    for course in courses:
+        result.append({
+            'id': course.id,
+            'name': course.name,
+            'stage': course.stage,
+            'semester': course.semester,
+            'units': course.units
+        })
+    
+    return jsonify({'courses': result})
+
+@app.route('/admin/get_students')
+@login_required
+def admin_get_students():
+    if current_user.user_type != 'admin':
+        return jsonify({'error': 'غير مصرح لك بالوصول إلى بيانات الطلاب'}), 403
+    
+    # فلترة حسب المرحلة أو البحث
+    stage = request.args.get('stage', type=int)
+    search = request.args.get('search', '')
+    
+    query = Student.query.join(User, User.id == Student.user_id)
+    
+    if stage:
+        query = query.filter(Student.stage == stage)
+    if search:
+        query = query.filter(User.name.ilike(f'%{search}%') | 
+                             Student.student_id.ilike(f'%{search}%'))
+    
+    students = query.all()
+    
+    result = []
+    for student in students:
+        user = User.query.get(student.user_id)
+        result.append({
+            'id': student.id,
+            'student_id': student.student_id,
+            'name': user.name,
+            'username': user.username,
+            'stage': student.stage,
+            'user_id': student.user_id
+        })
+    
+    return jsonify(result)
+
+@app.route('/admin/get_student_details')
+@login_required
+def admin_get_student_details():
+    if current_user.user_type != 'admin':
+        return jsonify({'error': 'غير مصرح لك بالوصول إلى بيانات الطلاب'}), 403
+    
+    student_id = request.args.get('student_id', type=int)
+    if not student_id:
+        return jsonify({'error': 'يجب تحديد معرف الطالب'}), 400
+    
+    student = Student.query.get_or_404(student_id)
+    user = User.query.get(student.user_id)
+    
+    result = {
+        'id': student.id,
+        'student_id': student.student_id,
+        'name': user.name,
+        'username': user.username,
+        'stage': student.stage,
+        'user_id': student.user_id
+    }
+    
+    return jsonify(result)
+
+@app.route('/admin/add_course', methods=['POST'])
+@login_required
+def admin_add_course():
+    if current_user.user_type != 'admin':
+        return jsonify({'error': 'غير مصرح لك بإضافة مقررات'}), 403
+    
+    try:
+        name = request.form.get('name')
+        stage = int(request.form.get('stage'))
+        semester = int(request.form.get('semester'))
+        units = int(request.form.get('units'))
+        
+        # التحقق من وجود المقرر
+        existing_course = Course.query.filter_by(name=name, stage=stage, semester=semester).first()
+        if existing_course:
+            return jsonify({'error': 'المقرر موجود بالفعل في هذه المرحلة والفصل'}), 400
+        
+        # إنشاء المقرر الجديد
+        course = Course(
+            name=name,
+            stage=stage,
+            semester=semester,
+            units=units
+        )
+        db.session.add(course)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'تمت إضافة المقرر بنجاح',
+            'course_id': course.id
+        })
+    
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'حدث خطأ أثناء إضافة المقرر: {str(e)}'}), 500
+
+@app.route('/admin/update_course', methods=['POST'])
+@login_required
+def admin_update_course():
+    if current_user.user_type != 'admin':
+        return jsonify({'error': 'غير مصرح لك بتعديل المقررات'}), 403
+    
+    try:
+        course_id = request.form.get('course_id')
+        name = request.form.get('name')
+        stage = int(request.form.get('stage'))
+        semester = int(request.form.get('semester'))
+        units = int(request.form.get('units'))
+        
+        course = Course.query.get_or_404(course_id)
+        
+        # التحقق من وجود مقرر آخر بنفس الاسم والمرحلة والفصل
+        existing_course = Course.query.filter(
+            Course.name == name,
+            Course.stage == stage,
+            Course.semester == semester,
+            Course.id != course.id
+        ).first()
+        
+        if existing_course:
+            return jsonify({'error': 'يوجد مقرر آخر بنفس الاسم في هذه المرحلة والفصل'}), 400
+        
+        # تحديث بيانات المقرر
+        course.name = name
+        course.stage = stage
+        course.semester = semester
+        course.units = units
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'تم تحديث بيانات المقرر بنجاح'
+        })
+    
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'حدث خطأ أثناء تحديث بيانات المقرر: {str(e)}'}), 500
+
+@app.route('/admin/delete_course', methods=['POST'])
+@login_required
+def admin_delete_course():
+    if current_user.user_type != 'admin':
+        return jsonify({'error': 'غير مصرح لك بحذف المقررات'}), 403
+    
+    try:
+        course_id = request.form.get('course_id')
+        course = Course.query.get_or_404(course_id)
+        
+        # حذف الدرجات المرتبطة بالمقرر أولاً
+        Grade.query.filter_by(course_id=course.id).delete()
+        
+        # حذف المقرر
+        db.session.delete(course)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'تم حذف المقرر بنجاح'
+        })
+    
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'حدث خطأ أثناء حذف المقرر: {str(e)}'}), 500
+
+@app.route('/admin/get_user_details')
+@login_required
+def admin_get_user_details():
+    if current_user.user_type != 'admin':
+        return jsonify({'error': 'غير مصرح لك بالوصول إلى بيانات المستخدمين'}), 403
+    
+    user_id = request.args.get('user_id', type=int)
+    if not user_id:
+        return jsonify({'error': 'يجب تحديد معرف المستخدم'}), 400
+    
+    user = User.query.get_or_404(user_id)
+    
+    result = {
+        'id': user.id,
+        'name': user.name,
+        'username': user.username,
+        'user_type': user.user_type
+    }
+    
+    # إضافة بيانات الطالب إذا كان المستخدم طالب
+    if user.user_type == 'student':
+        student = Student.query.filter_by(user_id=user.id).first()
+        if student:
+            result['student_id'] = student.student_id
+            result['stage'] = student.stage
+    
+    return jsonify(result)
+
+@app.route('/admin/get_student_grades')
+@login_required
+def admin_get_student_grades_for_course():
+    if current_user.user_type != 'admin':
+        return jsonify({'error': 'غير مصرح لك بالوصول إلى درجات الطلاب'}), 403
+    
+    course_id = request.args.get('course_id', type=int)
+    stage = request.args.get('stage', type=int)
+    
+    if not course_id:
+        return jsonify({'error': 'يجب تحديد معرف المقرر'}), 400
+    
+    # جلب جميع طلاب المرحلة
+    students_query = Student.query
+    if stage:
+        students_query = students_query.filter_by(stage=stage)
+    
+    students = students_query.all()
+    
+    result = []
+    for student in students:
+        user = User.query.get(student.user_id)
+        grade = Grade.query.filter_by(student_id=student.id, course_id=course_id).first()
+        
+        student_data = {
+            'student_id': student.id,
+            'student_number': student.student_id,
+            'student_name': user.name,
+            'grade_id': grade.id if grade else None,
+            'coursework': grade.coursework if grade else None,
+            'final_exam': grade.final_exam if grade else None,
+            'has_failed_courses': grade.total < 50 if grade else False
+        }
+        
+        result.append(student_data)
+    
+    return jsonify(result)
+
+@app.route('/admin/save_grades', methods=['POST'])
+@login_required
+def admin_save_grades():
+    if current_user.user_type != 'admin':
+        return jsonify({'error': 'غير مصرح لك بتعديل درجات الطلاب'}), 403
+    
+    try:
+        # استلام بيانات الدرجات
+        data = request.json
+        if not data or 'grades' not in data:
+            return jsonify({'error': 'بيانات الدرجات غير متوفرة'}), 400
+        
+        grades = data['grades']
+        updated_grades = []
+        
+        for grade_data in grades:
+            student_id = grade_data.get('student_id')
+            course_id = grade_data.get('course_id')
+            grade_id = grade_data.get('grade_id')
+            coursework = grade_data.get('coursework')
+            final_exam = grade_data.get('final_exam')
+            
+            # تحويل القيم إلى أرقام
+            if coursework:
+                try:
+                    coursework = float(coursework)
+                    if coursework > 30:
+                        coursework = 30
+                except:
+                    coursework = None
+            
+            if final_exam:
+                try:
+                    final_exam = float(final_exam)
+                    if final_exam > 70:
+                        final_exam = 70
+                except:
+                    final_exam = None
+            
+            # إذا لم تكن هناك درجات، تخطي هذا الطالب
+            if coursework is None and final_exam is None:
+                continue
+            
+            # البحث عن الدرجة أو إنشاء واحدة جديدة
+            grade = None
+            if grade_id:
+                grade = Grade.query.get(grade_id)
+            
+            if not grade:
+                grade = Grade.query.filter_by(student_id=student_id, course_id=course_id).first()
+            
+            if not grade:
+                grade = Grade(
+                    student_id=student_id,
+                    course_id=course_id,
+                    coursework=coursework if coursework is not None else 0,
+                    final_exam=final_exam if final_exam is not None else 0
+                )
+                db.session.add(grade)
+            else:
+                if coursework is not None:
+                    grade.coursework = coursework
+                if final_exam is not None:
+                    grade.final_exam = final_exam
+            
+            # حساب المجموع
+            grade.total = (grade.coursework or 0) + (grade.final_exam or 0)
+            
+            # تسجيل الدرجة المحدثة
+            updated_grades.append({
+                'student_id': student_id,
+                'grade_id': grade.id
+            })
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'تم حفظ {len(updated_grades)} درجة بنجاح',
+            'updatedGrades': updated_grades
+        })
+    
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'حدث خطأ أثناء حفظ الدرجات: {str(e)}'}), 500
+
+@app.route('/admin/stats/students')
+@login_required
+def admin_stats_students():
+    if current_user.user_type != 'admin':
+        return jsonify({'error': 'غير مصرح لك بالوصول إلى الإحصائيات'}), 403
+    
+    total_students = Student.query.count()
+    
+    # إحصاءات الطلاب حسب المرحلة
+    students_by_stage = []
+    for stage in range(1, 5):
+        count = Student.query.filter_by(stage=stage).count()
+        students_by_stage.append(count)
+    
+    return jsonify({
+        'total_students': total_students,
+        'students_by_stage': students_by_stage
+    })
+
+@app.route('/admin/stats/courses')
+@login_required
+def admin_stats_courses():
+    if current_user.user_type != 'admin':
+        return jsonify({'error': 'غير مصرح لك بالوصول إلى الإحصائيات'}), 403
+    
+    total_courses = Course.query.count()
+    
+    # توزيع المقررات حسب المرحلة والفصل
+    semester1_courses = []
+    semester2_courses = []
+    
+    for stage in range(1, 5):
+        sem1_count = Course.query.filter_by(stage=stage, semester=1).count()
+        sem2_count = Course.query.filter_by(stage=stage, semester=2).count()
+        semester1_courses.append(sem1_count)
+        semester2_courses.append(sem2_count)
+    
+    return jsonify({
+        'total_courses': total_courses,
+        'semester1_courses': semester1_courses,
+        'semester2_courses': semester2_courses
+    })
+
+@app.route('/admin/stats/success_rate_by_stage')
+@login_required
+def admin_stats_success_rate_by_stage():
+    if current_user.user_type != 'admin':
+        return jsonify({'error': 'غير مصرح لك بالوصول إلى الإحصائيات'}), 403
+    
+    success_rates = []
+    
+    for stage in range(1, 5):
+        # جلب جميع درجات طلاب هذه المرحلة
+        students = Student.query.filter_by(stage=stage).all()
+        total_grades = 0
+        passed_grades = 0
+        
+        for student in students:
+            grades = Grade.query.filter_by(student_id=student.id).all()
+            for grade in grades:
+                total_grades += 1
+                if grade.total >= 50:  # اعتبار 50 هو الحد الأدنى للنجاح
+                    passed_grades += 1
+        
+        # حساب نسبة النجاح
+        success_rate = 0
+        if total_grades > 0:
+            success_rate = (passed_grades / total_grades) * 100
+        
+        success_rates.append(success_rate)
+    
+    return jsonify({
+        'success_rates': success_rates
+    })
+
+@app.route('/admin/stats/grade_distribution')
+@login_required
+def admin_stats_grade_distribution():
+    if current_user.user_type != 'admin':
+        return jsonify({'error': 'غير مصرح لك بالوصول إلى الإحصائيات'}), 403
+    
+    stage = request.args.get('stage', type=int)
+    semester = request.args.get('semester', type=int)
+    course_id = request.args.get('course_id', type=int)
+    
+    # تعيين المقررات التي سيتم حساب متوسط درجاتها
+    courses = []
+    
+    if course_id:
+        # جلب مقرر واحد فقط
+        course = Course.query.get(course_id)
+        if course:
+            courses = [course]
+    else:
+        # جلب مقررات بناءً على المرحلة و/أو الفصل
+        course_query = Course.query
+        if stage:
+            course_query = course_query.filter_by(stage=stage)
+        if semester:
+            course_query = course_query.filter_by(semester=semester)
+        
+        courses = course_query.all()
+    
+    if not courses:
+        return jsonify({
+            'labels': [],
+            'averages': []
+        })
+    
+    labels = []
+    averages = []
+    
+    for course in courses:
+        labels.append(course.name)
+        
+        # حساب متوسط الدرجات لهذا المقرر
+        grades = Grade.query.filter_by(course_id=course.id).all()
+        
+        if not grades:
+            averages.append(0)
+            continue
+        
+        total_sum = sum(grade.total for grade in grades)
+        average = total_sum / len(grades)
+        averages.append(average)
+    
+    return jsonify({
+        'labels': labels,
+        'averages': averages
+    })
+
+@app.route('/admin/stats/top_bottom_students')
+@login_required
+def admin_stats_top_bottom_students():
+    if current_user.user_type != 'admin':
+        return jsonify({'error': 'غير مصرح لك بالوصول إلى الإحصائيات'}), 403
+    
+    # جلب جميع الطلاب وحساب متوسط درجاتهم
+    students = Student.query.all()
+    student_averages = []
+    
+    for student in students:
+        grades = Grade.query.filter_by(student_id=student.id).all()
+        
+        if not grades:
+            continue
+        
+        total_sum = sum(grade.total for grade in grades)
+        average = total_sum / len(grades)
+        
+        user = User.query.get(student.user_id)
+        
+        student_averages.append({
+            'id': student.id,
+            'name': user.name,
+            'student_id': student.student_id,
+            'stage': student.stage,
+            'average': average,
+            'has_failed_courses': any(grade.total < 50 for grade in grades)
+        })
+    
+    # ترتيب الطلاب حسب المتوسط
+    student_averages.sort(key=lambda x: x['average'], reverse=True)
+    
+    # أخذ أعلى 10 وأدنى 10 طلاب
+    top_students = student_averages[:10] if len(student_averages) >= 10 else student_averages
+    bottom_students = student_averages[-10:] if len(student_averages) >= 10 else student_averages[::-1]
+    
+    return jsonify({
+        'top_students': top_students,
+        'bottom_students': bottom_students
+    })
+
+@app.route('/admin/stats/hardest_courses')
+@login_required
+def admin_stats_hardest_courses():
+    if current_user.user_type != 'admin':
+        return jsonify({'error': 'غير مصرح لك بالوصول إلى الإحصائيات'}), 403
+    
+    courses = Course.query.all()
+    course_success_rates = []
+    
+    for course in courses:
+        grades = Grade.query.filter_by(course_id=course.id).all()
+        
+        if not grades:
+            continue
+        
+        total_students = len(grades)
+        passed_students = sum(1 for grade in grades if grade.total >= 50)
+        
+        success_rate = 0
+        if total_students > 0:
+            success_rate = (passed_students / total_students) * 100
+        
+        course_success_rates.append({
+            'course_id': course.id,
+            'course_name': course.name,
+            'success_rate': success_rate,
+            'stage': course.stage,
+            'semester': course.semester
+        })
+    
+    # ترتيب المقررات حسب نسبة النجاح (من الأقل إلى الأعلى)
+    course_success_rates.sort(key=lambda x: x['success_rate'])
+    
+    # أخذ أصعب 10 مقررات
+    hardest_courses = course_success_rates[:10] if len(course_success_rates) >= 10 else course_success_rates
+    
+    return jsonify({
+        'course_names': [course['course_name'] for course in hardest_courses],
+        'success_rates': [course['success_rate'] for course in hardest_courses]
+    })
+
+@app.route('/admin/export/students')
+@login_required
+def admin_export_students():
+    if current_user.user_type != 'admin':
+        return jsonify({'error': 'غير مصرح لك بتصدير بيانات الطلاب'}), 403
+    
+    format_type = request.args.get('format', 'csv')
+    stage = request.args.get('stage', type=int)
+    
+    # جلب بيانات الطلاب
+    query = Student.query.join(User, User.id == Student.user_id)
+    
+    if stage:
+        query = query.filter(Student.stage == stage)
+    
+    students = query.all()
+    
+    # تجهيز البيانات
+    student_data = []
+    for student in students:
+        user = User.query.get(student.user_id)
+        student_data.append({
+            'student_id': student.student_id,
+            'name': user.name,
+            'username': user.username,
+            'stage': student.stage,
+            'has_failed_courses': any(grade.total < 50 for grade in Grade.query.filter_by(student_id=student.id).all())
+        })
+    
+    # تصدير البيانات حسب الصيغة المطلوبة
+    if format_type == 'csv':
+        # إنشاء ملف CSV
+        output = io.StringIO()
+        fieldnames = ['student_id', 'name', 'username', 'stage', 'has_failed_courses']
+        writer = csv.DictWriter(output, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(student_data)
+        
+        response = make_response(output.getvalue())
+        response.headers['Content-Disposition'] = 'attachment; filename=students.csv'
+        response.headers['Content-Type'] = 'text/csv'
+        return response
+    
+    elif format_type == 'excel':
+        # إنشاء ملف Excel
+        output = io.BytesIO()
+        workbook = xlsxwriter.Workbook(output)
+        worksheet = workbook.add_worksheet()
+        
+        # كتابة الرؤوس
+        headers = ['رقم الطالب', 'الإسم', 'اسم المستخدم', 'المرحلة', 'راسب في أي مادة']
+        for col, header in enumerate(headers):
+            worksheet.write(0, col, header)
+        
+        # كتابة البيانات
+        for row, student in enumerate(student_data, 1):
+            worksheet.write(row, 0, student['student_id'])
+            worksheet.write(row, 1, student['name'])
+            worksheet.write(row, 2, student['username'])
+            worksheet.write(row, 3, student['stage'])
+            worksheet.write(row, 4, 'نعم' if student['has_failed_courses'] else 'لا')
+        
+        workbook.close()
+        
+        output.seek(0)
+        response = make_response(output.getvalue())
+        response.headers['Content-Disposition'] = 'attachment; filename=students.xlsx'
+        response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        return response
+    
+    elif format_type == 'pdf':
+        # إنشاء ملف PDF
+        pdf_buffer = io.BytesIO()
+        pdf = canvas.Canvas(pdf_buffer, pagesize=letter)
+        
+        # إعداد الخط للغة العربية
+        pdfmetrics.registerFont(TTFont('Arial', 'arial.ttf'))
+        pdf.setFont('Arial', 12)
+        
+        # كتابة العنوان
+        pdf.drawString(250, 750, "بيانات الطلاب")
+        pdf.line(50, 735, 550, 735)
+        
+        # كتابة الرؤوس
+        headers = ['رقم الطالب', 'الإسم', 'اسم المستخدم', 'المرحلة', 'راسب في أي مادة']
+        x_positions = [50, 150, 300, 450, 550]
+        y_position = 700
+        
+        for i, header in enumerate(headers):
+            pdf.drawString(x_positions[i], y_position, header)
+        
+        pdf.line(50, y_position - 15, 550, y_position - 15)
+        y_position -= 40
+        
+        # كتابة البيانات
+        for student in student_data:
+            pdf.drawString(x_positions[0], y_position, student['student_id'])
+            pdf.drawString(x_positions[1], y_position, student['name'])
+            pdf.drawString(x_positions[2], y_position, student['username'])
+            pdf.drawString(x_positions[3], y_position, str(student['stage']))
+            pdf.drawString(x_positions[4], y_position, 'نعم' if student['has_failed_courses'] else 'لا')
+            
+            y_position -= 25
+            if y_position < 50:
+                pdf.showPage()
+                pdf.setFont('Arial', 12)
+                y_position = 750
+        
+        pdf.save()
+        
+        pdf_buffer.seek(0)
+        response = make_response(pdf_buffer.getvalue())
+        response.headers['Content-Disposition'] = 'attachment; filename=students.pdf'
+        response.headers['Content-Type'] = 'application/pdf'
+        return response
+    
+    else:
+        return jsonify({'error': 'صيغة التصدير غير مدعومة'}), 400
+
+@app.route('/admin/import/students', methods=['POST'])
+@login_required
+def admin_import_students():
+    if current_user.user_type != 'admin':
+        return jsonify({'error': 'غير مصرح لك باستيراد بيانات الطلاب'}), 403
+    
+    if 'students_file' not in request.files:
+        return jsonify({'error': 'لم يتم تحديد ملف'}), 400
+    
+    file = request.files['students_file']
+    if file.filename == '':
+        return jsonify({'error': 'لم يتم اختيار ملف'}), 400
+    
+    # التحقق من نوع الملف
+    if not (file.filename.endswith('.csv') or file.filename.endswith('.xlsx') or file.filename.endswith('.xls')):
+        return jsonify({'error': 'نوع الملف غير مدعوم. يرجى استخدام CSV أو Excel'}), 400
+    
+    try:
+        create_accounts = request.form.get('create_accounts') == 'on'
+        imported_count = 0
+        
+        if file.filename.endswith('.csv'):
+            # استيراد من CSV
+            df = pd.read_csv(file, encoding='utf-8')
+        else:
+            # استيراد من Excel
+            df = pd.read_excel(file)
+        
+        # التحقق من وجود الأعمدة المطلوبة
+        required_columns = ['اسم الطالب', 'رقم الطالب', 'المرحلة']
+        for column in required_columns:
+            if column not in df.columns:
+                return jsonify({'error': f'العمود "{column}" مفقود من الملف'}), 400
+        
+        # معالجة كل صف في الملف
+        for _, row in df.iterrows():
+            student_name = row['اسم الطالب']
+            student_id = str(row['رقم الطالب'])
+            stage = int(row['المرحلة'])
+            
+            # التحقق من وجود الطالب
+            existing_student = Student.query.filter_by(student_id=student_id).first()
+            
+            if existing_student:
+                # تحديث الطالب الموجود
+                existing_student.stage = stage
+                user = User.query.get(existing_student.user_id)
+                user.name = student_name
+            else:
+                # إنشاء مستخدم جديد
+                if create_accounts:
+                    # إنشاء اسم مستخدم فريد
+                    username = f"s{student_id}"
+                    counter = 1
+                    while User.query.filter_by(username=username).first():
+                        username = f"s{student_id}_{counter}"
+                        counter += 1
+                    
+                    # إنشاء مستخدم جديد
+                    user = User(
+                        name=student_name,
+                        username=username,
+                        user_type='student'
+                    )
+                    # تعيين كلمة مرور افتراضية هي رقم الطالب
+                    user.set_password(student_id)
+                    db.session.add(user)
+                    db.session.flush()  # للحصول على معرف المستخدم
+                    
+                    # إنشاء سجل طالب جديد
+                    student = Student(
+                        user_id=user.id,
+                        student_id=student_id,
+                        stage=stage
+                    )
+                    db.session.add(student)
+                    imported_count += 1
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'تم استيراد {imported_count} طالب بنجاح',
+            'imported_count': imported_count
+        })
+    
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'حدث خطأ أثناء استيراد بيانات الطلاب: {str(e)}'}), 500
+
+# دالة لتهيئة الإعدادات
+def initialize_settings():
+    # تهيئة الجدول إذا لم يكن موجوداً
+    try:
+        inspector = inspect(db.engine)
+        if not inspector.has_table('settings'):
+            Settings.__table__.create(db.engine)
+            app.logger.info("تم إنشاء جدول الإعدادات")
+        
+        # إضافة الإعدادات الافتراضية إذا لم تكن موجودة
+        default_settings = [
+            {'key': 'current_academic_year', 'value': '2024-2025', 'description': 'العام الدراسي الحالي'},
+            {'key': 'current_semester', 'value': '1', 'description': 'الفصل الدراسي الحالي'},
+            {'key': 'min_pass_grade', 'value': '50', 'description': 'الحد الأدنى للنجاح'},
+            {'key': 'max_decision_marks', 'value': '10', 'description': 'الحد الأقصى لدرجات القرار'}
+        ]
+        
+        for setting in default_settings:
+            existing_setting = Settings.query.filter_by(key=setting['key']).first()
+            if not existing_setting:
+                new_setting = Settings(
+                    key=setting['key'],
+                    value=setting['value'],
+                    description=setting['description']
+                )
+                db.session.add(new_setting)
+        
+        db.session.commit()
+        app.logger.info("تم تهيئة الإعدادات الافتراضية")
+    except Exception as e:
+        app.logger.error(f"خطأ في تهيئة الإعدادات: {str(e)}")
+        db.session.rollback()
 
 if __name__ == '__main__':
     init_db()

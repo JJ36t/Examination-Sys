@@ -10,8 +10,9 @@
         <h4 class="text-center mb-4">لوحة الطالب</h4>
         <div class="text-center mb-4">
             <i class="fas fa-user-graduate fa-3x mb-2"></i>
-            <h5>{{ current_user.name }}</h5>
-            <p class="text-white">طالب</p>
+            <h5>{{ student_info.name }}</h5>
+            <p class="text-white">رقم الطالب: {{ student_info.id }}</p>
+            <p class="text-white">المرحلة الحالية: {{ student_info.current_stage }}</p>
         </div>
         <hr>
         <h6 class="sidebar-heading px-3 mt-4 mb-2 text-white">المراحل الدراسية</h6>
@@ -21,6 +22,13 @@
                 <a class="nav-link {% if loop.first %}active{% endif %}" href="#stage{{ stage }}">
                     <i class="fas fa-graduation-cap me-2"></i>
                     المرحلة {{ stage }}
+                    {% if stage == student_info.current_stage %}
+                    <span class="badge bg-success">الحالية</span>
+                    {% elif stage < student_info.current_stage %}
+                    <span class="badge bg-info">سابقة</span>
+                    {% else %}
+                    <span class="badge bg-secondary">قادمة</span>
+                    {% endif %}
                 </a>
             </li>
             {% endfor %}
@@ -52,6 +60,13 @@
                     <h3 class="stage-title">
                         <i class="fas fa-graduation-cap me-2"></i>
                         المرحلة {{ stage }}
+                        {% if stage == student_info.current_stage %}
+                        <span class="badge bg-success">المرحلة الحالية</span>
+                        {% elif stage < student_info.current_stage %}
+                        <span class="badge bg-info">مرحلة سابقة</span>
+                        {% else %}
+                        <span class="badge bg-secondary">مرحلة قادمة</span>
+                        {% endif %}
                     </h3>
                     
                     <ul class="nav nav-pills mb-3" id="pills-tab-{{ stage }}" role="tablist">
@@ -86,11 +101,6 @@
                                                     <thead>
                                                         <tr>
                                                             <th>المادة</th>
-                                                            <th>السعي</th>
-                                                            <th>الامتحان النهائي</th>
-                                                            <th>درجة القرار</th>
-                                                            <th>الوحدات</th>
-                                                            <th>المجموع</th>
                                                             <th>التقدير</th>
                                                         </tr>
                                                     </thead>
@@ -98,11 +108,6 @@
                                                         {% for item in all_grades[stage][semester] %}
                                                             <tr>
                                                                 <td>{{ item.course.name }}</td>
-                                                                <td>{{ item.grade.coursework }}</td>
-                                                                <td>{{ item.grade.final_exam }}</td>
-                                                                <td>{{ item.grade.decision_marks }}</td>
-                                                                <td>{{ item.course.units }}</td>
-                                                                <td>{{ item.grade.total }}</td>
                                                                 <td>
                                                                     <span class="badge {% if item.grade.total < 50 %}bg-danger{% elif item.grade.total < 60 %}bg-warning{% elif item.grade.total < 70 %}bg-info{% elif item.grade.total < 80 %}bg-primary{% elif item.grade.total < 90 %}bg-success{% else %}bg-success{% endif %}">
                                                                         {{ item.grade.grade_evaluation }}
@@ -148,7 +153,11 @@
                                                 <h6 class="mb-3">ملخص الدرجات للكورس</h6>
                                                 <div class="row">
                                                     <div class="col-md-3">
-                                                        <p><strong>الدرجة النهائية للكورس:</strong> <span class="badge bg-primary">{{ average_grade|round(2) }}</span></p>
+                                                        {% if failed_courses.value == 0 %}
+                                                        <p><strong>الدرجة النهائية للكورس:</strong> <span class="badge bg-primary">{{ average_grade|round(4) }}</span></p>
+                                                        {% else %}
+                                                        <p><strong>الدرجة النهائية للكورس:</strong> <span class="badge bg-danger">راسب</span></p>
+                                                        {% endif %}
                                                     </div>
                                                     <div class="col-md-3">
                                                         <p><strong>المواد الناجحة:</strong> <span class="badge bg-success">{{ passed_courses.value }}</span></p>
@@ -157,23 +166,22 @@
                                                         <p><strong>المواد الراسبة:</strong> <span class="badge bg-danger">{{ failed_courses.value }}</span></p>
                                                     </div>
                                                     <div class="col-md-3">
-                                                        <p><strong>التقدير:</strong> <span class="badge {% if average_grade < 50 %}bg-danger{% elif average_grade < 60 %}bg-warning{% elif average_grade < 70 %}bg-info{% elif average_grade < 80 %}bg-primary{% elif average_grade < 90 %}bg-success{% else %}bg-success{% endif %}">
-                                                            {{ overall_evaluation }}
-                                                        </span></p>
+                                                        {% if failed_courses.value == 0 %}
+                                                        <p><strong>التقدير:</strong> <span class="badge {% if average_grade < 50 %}bg-danger{% elif average_grade < 60 %}bg-warning{% elif average_grade < 70 %}bg-info{% elif average_grade < 80 %}bg-primary{% elif average_grade < 90 %}bg-success{% else %}bg-success{% endif %}">{{ overall_evaluation }}</span></p>
+                                                        {% else %}
+                                                        <p><strong>التقدير:</strong> <span class="badge bg-danger">راسب</span></p>
+                                                        {% endif %}
                                                     </div>
                                                 </div>
                                                 
-                                                {% if semester == 2 %}
-                                                <div class="mt-3 pt-3 border-top">
-                                                    <h6 class="mb-3">المعدل النهائي للمرحلة {{ stage }}</h6>
-                                                    <div class="row">
-                                                        <div class="col-md-12">
-                                                            <p><strong>المعدل النهائي للمرحلة:</strong> 
-                                                                <span class="badge {% if stage_gpas[stage] < 50 %}bg-danger{% elif stage_gpas[stage] < 60 %}bg-warning{% elif stage_gpas[stage] < 70 %}bg-info{% elif stage_gpas[stage] < 80 %}bg-primary{% elif stage_gpas[stage] < 90 %}bg-success{% else %}bg-success{% endif %}">
-                                                                    {{ stage_gpas[stage]|round(4) }}
-                                                                </span>
-                                                            </p>
-                                                        </div>
+                                                {% if stage_gpas[stage] and semester == 2 %}
+                                                <div class="row mt-3">
+                                                    <div class="col-md-12">
+                                                        {% if stage_gpas[stage] is string and stage_gpas[stage] == "راسب" %}
+                                                            <p><strong>المعدل النهائي للمرحلة:</strong> <span class="badge bg-danger">{{ stage_gpas[stage] }}</span></p>
+                                                        {% else %}
+                                                            <p><strong>المعدل النهائي للمرحلة:</strong> <span class="badge bg-primary">{{ stage_gpas[stage]|round(4) }}</span></p>
+                                                        {% endif %}
                                                     </div>
                                                 </div>
                                                 {% endif %}
@@ -181,9 +189,9 @@
                                         </div>
                                     </div>
                                 {% else %}
-                                    <div class="alert alert-warning">
-                                        <i class="fas fa-exclamation-circle me-2"></i>
-                                        لا توجد درجات متاحة لهذا الكورس.
+                                    <div class="alert alert-info">
+                                        <i class="fas fa-info-circle me-2"></i>
+                                        لا توجد درجات متاحة لهذا الكورس حتى الآن.
                                     </div>
                                 {% endif %}
                             </div>
@@ -198,27 +206,50 @@
 
 {% block extra_js %}
 <script>
-    $(document).ready(function() {
-        // Smooth scrolling for sidebar links
-        $("#stageNav .nav-link").on('click', function(event) {
-            if (this.hash !== "") {
-                event.preventDefault();
-                const hash = this.hash;
-                
-                // Update active state
-                $('#stageNav .nav-link').removeClass('active');
-                $(this).addClass('active');
-                
-                $('html, body').animate({
-                    scrollTop: $(hash).offset().top - 20
-                }, 800);
-            }
+    document.addEventListener('DOMContentLoaded', function() {
+        // إضافة المؤثرات البصرية والتفاعلية
+        const sidebarToggle = document.querySelector('.sidebar-toggle');
+        const sidebar = document.querySelector('.sidebar');
+        const content = document.querySelector('.content');
+        
+        sidebarToggle.addEventListener('click', function() {
+            sidebar.classList.toggle('active');
+            content.classList.toggle('expanded');
         });
         
-        // Toggle sidebar on mobile
-        $('.sidebar-toggle').click(function() {
-            $('.sidebar').toggleClass('active');
+        // إظهار جميع المراحل في البداية
+        const stageContents = document.querySelectorAll('[id^="stage"]');
+        stageContents.forEach(content => {
+            content.style.display = 'block';
         });
+        
+        // التبديل بين المراحل
+        const stageLinks = document.querySelectorAll('#stageNav .nav-link');
+        
+        stageLinks.forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                
+                // إزالة الفئة النشطة من جميع الروابط
+                stageLinks.forEach(l => l.classList.remove('active'));
+                
+                // إضافة الفئة النشطة إلى الرابط الحالي
+                this.classList.add('active');
+                
+                // الانتقال إلى القسم المطلوب
+                const targetId = this.getAttribute('href').substring(1);
+                const targetElement = document.getElementById(targetId);
+                window.scrollTo({
+                    top: targetElement.offsetTop - 20,
+                    behavior: 'smooth'
+                });
+            });
+        });
+        
+        // تنشيط الرابط الأول (المرحلة الحالية) افتراضيًا
+        if (stageLinks.length > 0) {
+            stageLinks[0].click();
+        }
     });
 </script>
 {% endblock %}

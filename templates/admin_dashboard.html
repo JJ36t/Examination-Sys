@@ -1,0 +1,261 @@
+{% extends "admin_layout.html" %}
+
+{% block admin_content %}
+<div class="row mb-4">
+    <div class="col-md-4 mb-3">
+        <div class="card text-white bg-primary stat-card">
+            <div class="icon">
+                <i class="fas fa-user-graduate"></i>
+            </div>
+            <div class="card-body">
+                <h5 class="card-title">إجمالي الطلاب</h5>
+                <div class="number">{{ total_students }}</div>
+                <a href="{{ url_for('admin_students') }}" class="link text-white">عرض التفاصيل <i class="fas fa-arrow-circle-right"></i></a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-3">
+        <div class="card text-white bg-success stat-card">
+            <div class="icon">
+                <i class="fas fa-book-open"></i>
+            </div>
+            <div class="card-body">
+                <h5 class="card-title">إجمالي المقررات</h5>
+                <div class="number">{{ total_courses }}</div>
+                <a href="{{ url_for('admin_courses') }}" class="link text-white">عرض التفاصيل <i class="fas fa-arrow-circle-right"></i></a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4 mb-3">
+        <div class="card text-white bg-info stat-card">
+            <div class="icon">
+                <i class="fas fa-users"></i>
+            </div>
+            <div class="card-body">
+                <h5 class="card-title">المستخدمين النشطين</h5>
+                <div class="number">{{ total_users }}</div>
+                <a href="{{ url_for('admin_users') }}" class="link text-white">عرض التفاصيل <i class="fas fa-arrow-circle-right"></i></a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-7 mb-4">
+        <div class="card shadow h-100">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i> إحصائيات الطلاب</h5>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-primary active" id="byStageBtn" onclick="switchChart('stage')">حسب المرحلة</button>
+                    <button class="btn btn-outline-primary" id="bySemesterBtn" onclick="switchChart('semester')">حسب الفصل</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="system-stats" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-5 mb-4">
+        <div class="card shadow h-100">
+            <div class="card-header bg-light">
+                <h5 class="mb-0"><i class="fas fa-history me-2"></i> آخر النشاطات</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush" id="recent-activities">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">جاري التحميل...</span>
+                        </div>
+                        <p class="mt-2 text-muted">جاري تحميل النشاطات...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <div class="card shadow h-100">
+            <div class="card-header bg-light">
+                <h5 class="mb-0"><i class="fas fa-graduation-cap me-2"></i> توزيع الدرجات</h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container pie-chart-container">
+                    <canvas id="grades-stats" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 mb-4">
+        <div class="card shadow h-100">
+            <div class="card-header bg-light">
+                <h5 class="mb-0"><i class="fas fa-tasks me-2"></i> مؤشرات الأداء</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-6 mb-4">
+                        <h6>نسبة النجاح</h6>
+                        <div class="display-4 text-success">{{ success_rate|default('85%', true) }}</div>
+                    </div>
+                    <div class="col-6 mb-4">
+                        <h6>أعلى معدل</h6>
+                        <div class="display-4 text-primary">{{ top_score|default('98', true) }}</div>
+                    </div>
+                    <div class="col-6">
+                        <h6>عدد المقررات النشطة</h6>
+                        <div class="display-4 text-info">{{ active_courses|default(total_courses, true) }}</div>
+                    </div>
+                    <div class="col-6">
+                        <h6>إجمالي الأقسام</h6>
+                        <div class="display-4 text-warning">{{ departments|default('3', true) }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- إضافة ملف إعدادات الرسومات البيانية -->
+<script src="{{ url_for('static', filename='js/charts-config.js') }}"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // بيانات إضافية للمخططات البيانية الجديدة
+        const gradeDistribution = [15, 22, 30, 18, 10, 5]; // امتياز، جيد جدًا، جيد، متوسط، مقبول، راسب
+        
+        // إنشاء رسم بياني لتوزيع الطلاب حسب المرحلة
+        createStudentsChart('stage');
+        
+        // إنشاء رسم بياني لتوزيع الدرجات
+        createGradesChart(gradeDistribution);
+        
+        // جلب آخر النشاطات
+        fetchActivities();
+        
+        // ضبط أحجام الرسومات البيانية
+        setupChartCanvases();
+    });
+    
+    // دالة لإنشاء مخطط توزيع الطلاب
+    function createStudentsChart(type) {
+        const ctx = document.getElementById('system-stats').getContext('2d');
+        
+        // مسح الرسم البياني السابق إن وجد
+        if (window.studentsChart) {
+            window.studentsChart.destroy();
+        }
+        
+        let labels, data, title;
+        
+        if (type === 'stage') {
+            labels = ['المرحلة الأولى', 'المرحلة الثانية', 'المرحلة الثالثة', 'المرحلة الرابعة'];
+            data = {{ students_per_stage|safe }};
+            title = 'توزيع الطلاب حسب المرحلة';
+        } else {
+            labels = ['الفصل الأول', 'الفصل الثاني'];
+            // استخدام بيانات افتراضية إذا لم تكن متوفرة
+            data = {{ students_per_semester|default('[120, 110]', true)|safe }};
+            title = 'توزيع الطلاب حسب الفصل الدراسي';
+        }
+        
+        window.studentsChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'عدد الطلاب',
+                    data: data,
+                    backgroundColor: colorsScheme.backgroundColors.slice(0, labels.length),
+                    borderColor: colorsScheme.borderColors.slice(0, labels.length),
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                ...barChartOptions,
+                plugins: {
+                    ...barChartOptions.plugins,
+                    title: {
+                        display: true,
+                        text: title,
+                        font: {
+                            size: 16
+                        }
+                    }
+                }
+            }
+        });
+    }
+    
+    // دالة لإنشاء مخطط توزيع الدرجات
+    function createGradesChart(data) {
+        const ctx = document.getElementById('grades-stats').getContext('2d');
+        
+        window.gradesChart = new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: ['امتياز', 'جيد جدًا', 'جيد', 'متوسط', 'مقبول', 'راسب'],
+                datasets: [{
+                    data: data,
+                    backgroundColor: colorsScheme.backgroundColors,
+                    borderColor: colorsScheme.borderColors,
+                    borderWidth: 1
+                }]
+            },
+            options: pieChartOptions
+        });
+    }
+    
+    // دالة للتبديل بين أنواع المخططات
+    function switchChart(type) {
+        if (type === 'stage') {
+            document.getElementById('byStageBtn').classList.add('active');
+            document.getElementById('bySemesterBtn').classList.remove('active');
+        } else {
+            document.getElementById('byStageBtn').classList.remove('active');
+            document.getElementById('bySemesterBtn').classList.add('active');
+        }
+        
+        createStudentsChart(type);
+    }
+    
+    // دالة لجلب النشاطات
+    function fetchActivities() {
+        fetch('/api/admin/stats')
+            .then(response => response.json())
+            .then(data => {
+                // تحديث النشاطات
+                const activitiesList = document.getElementById('recent-activities');
+                
+                if (data.activities && data.activities.length > 0) {
+                    activitiesList.innerHTML = '';
+                    data.activities.forEach(activity => {
+                        const item = document.createElement('div');
+                        item.className = 'list-group-item list-group-item-action';
+                        item.innerHTML = `
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h6 class="mb-1">${activity.user}</h6>
+                                <small class="text-muted">${activity.time}</small>
+                            </div>
+                            <p class="mb-1">${activity.action}</p>
+                        `;
+                        activitiesList.appendChild(item);
+                    });
+                } else {
+                    activitiesList.innerHTML = '<div class="list-group-item text-center py-3">لا توجد نشاطات حديثة</div>';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading admin stats:', error);
+                const activitiesList = document.getElementById('recent-activities');
+                activitiesList.innerHTML = '<div class="list-group-item text-center py-3 text-danger">حدث خطأ أثناء تحميل النشاطات</div>';
+            });
+    }
+</script>
+{% endblock %}

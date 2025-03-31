@@ -306,9 +306,6 @@
                         displayStudents(data);
                         window.currentLoadRequest = null;
                         
-                        // تحديث الإحصائيات
-                        updateStatistics(data);
-                        
                         // عرض إشعار نجاح
                         showToast('تم التحميل بنجاح', 'تم تحميل بيانات الطلاب بنجاح', 'success');
                     },
@@ -561,7 +558,11 @@
                                 <h6 class="mb-3">ملخص الدرجات للكورس</h6>
                                 <div class="row">
                                     <div class="col-md-3">
-                                        <p><strong>الدرجة النهائية للكورس:</strong> <span class="badge bg-primary">${student.semester_gpa}</span></p>
+                                        <p><strong>الدرجة النهائية للكورس:</strong> 
+                                            <span class="badge ${student.has_failed_courses ? 'bg-danger' : 'bg-primary'}">
+                                                ${student.has_failed_courses ? 'راسب' : parseFloat(student.semester_gpa).toFixed(4)}
+                                            </span>
+                                        </p>
                                     </div>
                                     <div class="col-md-3">
                                         <p><strong>المواد الناجحة:</strong> <span class="badge bg-success">${passedCourses}</span></p>
@@ -590,14 +591,9 @@
                                         <div class="col-md-12">
                                             <p><strong>المعدل النهائي للمرحلة:</strong> 
                                                 <span class="badge ${
-                                                    student.stage_gpa < 50 ? 'bg-danger' : 
-                                                    student.stage_gpa < 60 ? 'bg-warning text-dark' : 
-                                                    student.stage_gpa < 70 ? 'bg-info text-dark' : 
-                                                    student.stage_gpa < 80 ? 'bg-primary' : 
-                                                    student.stage_gpa < 90 ? 'bg-success' : 
-                                                    'bg-purple'
+                                                    student.has_failed_courses ? 'bg-danger' : 'bg-primary'
                                                 }">
-                                                    ${student.stage_gpa.toFixed(4)}
+                                                    ${student.has_failed_courses ? 'راسب' : parseFloat(student.stage_gpa).toFixed(4)}
                                                 </span>
                                             </p>
                                         </div>
@@ -734,244 +730,10 @@
     
     // وظيفة لتحديث الإحصائيات وعرضها
     function updateStatistics(students) {
-        if (!students || students.length === 0) {
-            return;
-        }
-        
-        // حساب الإحصائيات
-        const totalStudents = students.length;
-        let totalPassed = 0;
-        let totalFailed = 0;
-        let totalGrades = 0;
-        let totalCourses = 0;
-        
-        // مصفوفات لتخزين البيانات للرسوم البيانية
-        const gradeRanges = {
-            'ضعيف (أقل من 50)': 0,
-            'مقبول (50-59)': 0,
-            'متوسط (60-69)': 0,
-            'جيد (70-79)': 0,
-            'جيد جدا (80-89)': 0,
-            'امتياز (90-100)': 0
-        };
-        
-        // حساب الإحصائيات لكل طالب
-        students.forEach(student => {
-            let studentPassed = true;
-            
-            student.grades.forEach(grade => {
-                totalCourses++;
-                totalGrades += grade.total;
-                
-                // تصنيف الدرجات حسب النطاق
-                if (grade.total < 50) {
-                    gradeRanges['ضعيف (أقل من 50)']++;
-                    studentPassed = false;
-                } else if (grade.total < 60) {
-                    gradeRanges['مقبول (50-59)']++;
-                } else if (grade.total < 70) {
-                    gradeRanges['متوسط (60-69)']++;
-                } else if (grade.total < 80) {
-                    gradeRanges['جيد (70-79)']++;
-                } else if (grade.total < 90) {
-                    gradeRanges['جيد جدا (80-89)']++;
-                } else {
-                    gradeRanges['امتياز (90-100)']++;
-                }
-            });
-            
-            // تحديث عدد الطلاب الناجحين والراسبين
-            if (studentPassed) {
-                totalPassed++;
-            } else {
-                totalFailed++;
-            }
-        });
-        
-        // حساب متوسط الدرجات
-        const averageGrade = totalGrades / totalCourses;
-        
-        // إنشاء قسم الإحصائيات
-        const statisticsHTML = `
-            <div class="statistics-section mb-4">
-                <h3 class="mb-3">
-                    <i class="fas fa-chart-bar me-2"></i>
-                    إحصائيات الطلاب
-                </h3>
-                
-                <div class="row">
-                    <!-- بطاقات الإحصائيات -->
-                    <div class="col-md-3">
-                        <div class="stat-card bg-primary">
-                            <div class="stat-card-body">
-                                <h5 class="stat-card-title text-white">إجمالي الطلاب</h5>
-                                <p class="stat-card-value text-white">${totalStudents}</p>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-3">
-                        <div class="stat-card bg-success">
-                            <div class="stat-card-body">
-                                <h5 class="stat-card-title text-white">الطلاب الناجحين</h5>
-                                <p class="stat-card-value text-white">${totalPassed}</p>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-3">
-                        <div class="stat-card bg-danger">
-                            <div class="stat-card-body">
-                                <h5 class="stat-card-title text-white">الطلاب الراسبين</h5>
-                                <p class="stat-card-value text-white">${totalFailed}</p>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-3">
-                        <div class="stat-card bg-info">
-                            <div class="stat-card-body">
-                                <h5 class="stat-card-title text-white">متوسط الدرجات</h5>
-                                <p class="stat-card-value text-white">${averageGrade.toFixed(2)}</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="row mt-4">
-                    <!-- الرسوم البيانية -->
-                    <div class="col-md-6">
-                        <div class="card">
-                            <div class="card-header bg-light">
-                                <h5 class="mb-0">توزيع الدرجات</h5>
-                            </div>
-                            <div class="card-body">
-                                <canvas id="gradesDistributionChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-6">
-                        <div class="card">
-                            <div class="card-header bg-light">
-                                <h5 class="mb-0">نسبة النجاح والرسوب</h5>
-                            </div>
-                            <div class="card-body">
-                                <canvas id="passFailChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="row mt-3">
-                    <div class="col-12">
-                        <div class="d-flex justify-content-end">
-                            <button id="exportPdfBtn" class="btn btn-danger me-2">
-                                <i class="fas fa-file-pdf me-2"></i>
-                                تصدير PDF
-                            </button>
-                            <button id="exportExcelBtn" class="btn btn-success">
-                                <i class="fas fa-file-excel me-2"></i>
-                                تصدير Excel
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-        
-        // إضافة قسم الإحصائيات قبل قسم الطلاب
-        if ($('.statistics-section').length) {
-            $('.statistics-section').remove();
-        }
-        $('#studentsContainer').before(statisticsHTML);
-        
-        // إنشاء الرسم البياني لتوزيع الدرجات
-        const gradesCtx = document.getElementById('gradesDistributionChart').getContext('2d');
-        if (window.gradesChart && typeof window.gradesChart.destroy === 'function') {
-            window.gradesChart.destroy();
-        }
-        window.gradesChart = new Chart(gradesCtx, {
-            type: 'bar',
-            data: {
-                labels: Object.keys(gradeRanges),
-                datasets: [{
-                    label: 'عدد الدرجات',
-                    data: Object.values(gradeRanges),
-                    backgroundColor: [
-                        'rgba(220, 53, 69, 0.7)',   // ضعيف
-                        'rgba(255, 193, 7, 0.7)',   // مقبول
-                        'rgba(23, 162, 184, 0.7)',  // متوسط
-                        'rgba(0, 123, 255, 0.7)',   // جيد
-                        'rgba(40, 167, 69, 0.7)',   // جيد جدا
-                        'rgba(122, 40, 138, 0.7)'   // امتياز
-                    ],
-                    borderColor: [
-                        'rgb(220, 53, 69)',
-                        'rgb(255, 193, 7)',
-                        'rgb(23, 162, 184)',
-                        'rgb(0, 123, 255)',
-                        'rgb(40, 167, 69)',
-                        'rgb(122, 40, 138)'
-                    ],
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            precision: 0
-                        }
-                    }
-                },
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                }
-            }
-        });
-        
-        // إنشاء الرسم البياني لنسبة النجاح والرسوب
-        const passFailCtx = document.getElementById('passFailChart').getContext('2d');
-        if (window.passFailChart && typeof window.passFailChart.destroy === 'function') {
-            window.passFailChart.destroy();
-        }
-        window.passFailChart = new Chart(passFailCtx, {
-            type: 'pie',
-            data: {
-                labels: ['ناجح', 'راسب'],
-                datasets: [{
-                    data: [totalPassed, totalFailed],
-                    backgroundColor: [
-                        'rgba(40, 167, 69, 0.7)',
-                        'rgba(220, 53, 69, 0.7)'
-                    ],
-                    borderColor: [
-                        'rgb(40, 167, 69)',
-                        'rgb(220, 53, 69)'
-                    ],
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                plugins: {
-                    legend: {
-                        position: 'bottom'
-                    }
-                }
-            }
-        });
-        
-        // إضافة وظائف التصدير
-        setupExportFunctions(students);
+        // تم إزالة دالة تحديث الإحصائيات بناءً على طلب المستخدم
     }
     
-    // وظيفة لإعداد أزرار التصدير
+    // وظيفة لتحديث الإحصائيات وعرضها
     function setupExportFunctions(students) {
         // تصدير إلى Excel
         $('#exportExcelBtn').off('click').on('click', function() {
