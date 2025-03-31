@@ -12,6 +12,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+    <!-- Mobile CSS - ملف CSS خاص بالأجهزة المحمولة -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile.css') }}">
     <style>
         body {
             font-family: 'Tajawal', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -170,6 +172,18 @@
             to { transform: translateY(0); opacity: 1; }
         }
         
+        /* طبقة الخلفية للشريط الجانبي */
+        .sidebar-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 998;
+            display: none;
+        }
+        
         /* Responsive design */
         @media (max-width: 992px) {
             body {
@@ -202,69 +216,7 @@
             }
             
             .sidebar-toggle {
-                display: flex;
-                position: fixed;
-                top: 15px;
-                right: 15px;
-                z-index: 10000;
-                transition: all 0.3s ease;
-            }
-            
-            body.sidebar-visible .sidebar-toggle {
-                right: 235px;
-            }
-            
-            /* تأكد من عدم تداخل العناصر على الهواتف */
-            .sidebar > * {
-                opacity: 1 !important;
-                visibility: visible !important;
-                display: block !important;
-            }
-            
-            /* تعديل حجم المحتوى داخل الشريط الجانبي على الهواتف */
-            .sidebar .p-3 {
-                padding: 1rem !important;
-            }
-            
-            .sidebar h4 {
-                font-size: 1.2rem;
-            }
-            
-            .sidebar h5 {
-                font-size: 1rem;
-            }
-            
-            /* تأكد من وضوح النصوص والقوائم */
-            .sidebar .nav-link {
-                opacity: 1 !important;
-                display: block !important;
-            }
-            
-            /* إضافة طبقة خلفية عند فتح الشريط الجانبي */
-            .sidebar-backdrop {
-                display: none;
-                position: fixed;
-                top: 0;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                background-color: rgba(0, 0, 0, 0.4);
-                z-index: 9998;
-            }
-            
-            body.sidebar-visible .sidebar-backdrop {
-                display: block;
-            }
-        }
-        
-        @media (max-width: 576px) {
-            .sidebar-toggle {
-                top: 10px;
-                right: 10px;
-                padding: 8px 12px;
-            }
-            body.sidebar-visible .sidebar-toggle {
-                right: 290px;
+                display: flex !important;
             }
         }
     </style>
@@ -286,6 +238,9 @@
     
     <!-- إضافة مكتبة Chart.js للرسوم البيانية -->
     <script src="https://unpkg.com/chart.js"></script>
+    
+    <!-- إضافة ملف JavaScript خاص بالهواتف المحمولة -->
+    <script src="{{ url_for('static', filename='js/mobile.js') }}"></script>
     
     <script>
         $(document).ready(function() {
@@ -331,7 +286,18 @@
                     $('.sidebar').toggleClass('active');
                     $('body').toggleClass('sidebar-visible');
                     $('.sidebar-toggle i').toggleClass('fa-bars fa-times');
-                    $('.sidebar-backdrop').toggle();
+                    
+                    if ($('.sidebar').hasClass('active')) {
+                        $('.sidebar-backdrop').fadeIn(300);
+                        
+                        // منع التمرير في الصفحة عند فتح السايدبار على الهاتف
+                        $('body').css('overflow', 'hidden');
+                    } else {
+                        $('.sidebar-backdrop').fadeOut(300);
+                        
+                        // إعادة التمرير عند إغلاق السايدبار
+                        $('body').css('overflow', '');
+                    }
                 } else {
                     // سلوك الشريط الجانبي على الأجهزة الكبيرة
                     if ($('.content').hasClass('full-width')) {
@@ -355,12 +321,20 @@
                 $('.sidebar').removeClass('active');
                 $('body').removeClass('sidebar-visible');
                 $('.sidebar-toggle i').removeClass('fa-times').addClass('fa-bars');
-                $(this).hide();
+                $(this).fadeOut(300);
+                
+                // إعادة التمرير عند إغلاق السايدبار
+                $('body').css('overflow', '');
             });
             
             // إعادة تعيين حالة الشريط الجانبي عند تغيير حجم النافذة
             $(window).resize(function() {
                 applySidebarState();
+                
+                // إعادة التمرير عند تغيير حجم النافذة
+                if ($(window).width() > 992) {
+                    $('body').css('overflow', '');
+                }
             });
             
             // Apply animation to elements

@@ -235,81 +235,62 @@ function searchUsers() {
 
 // دالة لعرض قائمة المستخدمين في الجدول
 function displayUsers(users) {
-    const tableBody = document.getElementById('usersTableBody');
-    tableBody.innerHTML = '';
+    const tbody = document.getElementById('usersTableBody');
+    tbody.innerHTML = '';
     
     if (users.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="6" class="text-center">لا توجد بيانات للعرض</td></tr>';
+        const row = document.createElement('tr');
+        row.innerHTML = '<td colspan="6" class="text-center">لا توجد بيانات</td>';
+        tbody.appendChild(row);
         return;
     }
     
-    users.forEach((user, index) => {
+    let counter = 1;
+    users.forEach(user => {
         const row = document.createElement('tr');
         
-        // معلومات إضافية حسب نوع المستخدم
-        let additionalInfo = '';
-        if (user.user_type === 'student') {
-            additionalInfo = `رقم الطالب: ${user.student_id || ''}، المرحلة: ${user.stage || ''}`;
-        } else if (user.user_type === 'instructor') {
-            additionalInfo = 'مدرس';
-        } else if (user.user_type === 'admin') {
-            additionalInfo = 'مسؤول النظام';
+        // إضافة تمييز للمستخدمين المقفلة حساباتهم
+        if (user.is_locked) {
+            row.classList.add('table-danger');
         }
         
-        // ترجمة نوع المستخدم
-        let userTypeDisplay = '';
-        switch (user.user_type) {
-            case 'admin': userTypeDisplay = 'مسؤول'; break;
-            case 'instructor': userTypeDisplay = 'مدرس'; break;
-            case 'student': userTypeDisplay = 'طالب'; break;
-            default: userTypeDisplay = user.user_type;
+        let additionalInfo = '';
+        if (user.user_type === 'student' && user.student_id) {
+            additionalInfo = `رقم الطالب: ${user.student_id}, المرحلة: ${user.stage}`;
+        }
+        
+        // إضافة معلومات عن حالة الحساب
+        let accountStatus = '';
+        if (user.is_locked) {
+            accountStatus = '<span class="badge bg-danger">مقفل</span>';
+        } else if (user.failed_login_attempts > 0) {
+            accountStatus = `<span class="badge bg-warning">محاولات فاشلة: ${user.failed_login_attempts}</span>`;
         }
         
         row.innerHTML = `
-            <td>${index + 1}</td>
+            <td>${counter}</td>
             <td>${user.name}</td>
-            <td>${user.username}</td>
-            <td>${userTypeDisplay}</td>
+            <td>${user.username} ${accountStatus}</td>
+            <td>
+                ${user.user_type === 'admin' ? 'مسؤول' : 
+                 user.user_type === 'instructor' ? 'مدرس' : 'طالب'}
+            </td>
             <td>${additionalInfo}</td>
             <td>
-                <button class="btn btn-sm btn-primary edit-user" data-id="${user.id}">
+                <button class="btn btn-sm btn-info" onclick="fetchUserDetails(${user.id})">
                     <i class="fas fa-edit"></i> تعديل
                 </button>
-                <button class="btn btn-sm btn-danger delete-user" data-id="${user.id}" data-name="${user.name}" data-type="${user.user_type}">
+                <button class="btn btn-sm btn-danger" onclick="prepareDeleteUser(${user.id}, '${user.name}')">
                     <i class="fas fa-trash"></i> حذف
                 </button>
+                ${user.is_locked || user.failed_login_attempts > 0 ? 
+                 `<button class="btn btn-sm btn-warning" onclick="resetUserAttempts(${user.id})">
+                    <i class="fas fa-unlock"></i> إعادة تعيين
+                  </button>` : ''}
             </td>
         `;
-        tableBody.appendChild(row);
-    });
-    
-    // إضافة الأحداث لأزرار التعديل والحذف
-    document.querySelectorAll('.edit-user').forEach(button => {
-        button.addEventListener('click', function() {
-            const userId = this.getAttribute('data-id');
-            fetchUserDetails(userId);
-        });
-    });
-    
-    document.querySelectorAll('.delete-user').forEach(button => {
-        button.addEventListener('click', function() {
-            const userId = this.getAttribute('data-id');
-            const userName = this.getAttribute('data-name');
-            const userType = this.getAttribute('data-type');
-            
-            document.getElementById('deleteUserId').value = userId;
-            document.getElementById('deleteUserName').textContent = userName;
-            
-            let warningMessage = '';
-            if (userType === 'student') {
-                warningMessage = 'تحذير: حذف الطالب سيؤدي أيضًا إلى حذف جميع درجاته وبياناته في النظام.';
-            } else if (userType === 'admin') {
-                warningMessage = 'تحذير: حذف المسؤول سيؤدي إلى فقدان صلاحياته للنظام. تأكد من وجود مسؤول آخر للنظام.';
-            }
-            document.getElementById('deleteUserWarning').textContent = warningMessage;
-            
-            new bootstrap.Modal(document.getElementById('deleteUserModal')).show();
-        });
+        tbody.appendChild(row);
+        counter++;
     });
 }
 
@@ -420,6 +401,36 @@ function deleteUser() {
             console.error('Error deleting user:', error);
             alert('حدث خطأ أثناء حذف المستخدم.');
         });
+}
+
+// دالة لإعادة تعيين محاولات تسجيل الدخول
+function resetUserAttempts(userId) {
+    if (confirm('هل أنت متأكد من رغبتك في إعادة تعيين محاولات تسجيل الدخول وإلغاء قفل الحساب؟')) {
+        fetch(`/admin/reset_user_attempts/${userId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => {
+            if (response.redirected) {
+                window.location.href = response.url;
+            } else {
+                return response.json().then(data => {
+                    if (data.error) {
+                        alert(data.error);
+                    } else {
+                        alert('تم إعادة تعيين محاولات تسجيل الدخول بنجاح');
+                        loadUsers(); // إعادة تحميل قائمة المستخدمين
+                    }
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('حدث خطأ أثناء إعادة تعيين محاولات تسجيل الدخول');
+        });
+    }
 }
 </script>
 {% endblock %}

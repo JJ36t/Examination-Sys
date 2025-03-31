@@ -47,6 +47,8 @@ class User(db.Model, UserMixin):
     password_hash = db.Column(db.String(200), nullable=False)
     name = db.Column(db.String(100), nullable=False)
     user_type = db.Column(db.String(20), nullable=False)  # 'instructor', 'student', 'admin'
+    failed_login_attempts = db.Column(db.Integer, default=0)  # عدد محاولات تسجيل الدخول الفاشلة
+    is_locked = db.Column(db.Boolean, default=False)  # حالة حساب المستخدم (مقفل أم لا)
     
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -163,7 +165,16 @@ def login():
         
         user = User.query.filter_by(username=username).first()
         
+        # التحقق مما إذا كان الحساب مقفلاً بسبب محاولات متعددة فاشلة
+        if user and user.is_locked:
+            flash('تم قفل الحساب بسبب كثرة محاولات تسجيل الدخول الفاشلة. يرجى التواصل مع الإدارة.', 'danger')
+            return render_template('login.html', show_reset_request=True, username=username)
+        
         if user and user.check_password(password) and user.user_type == user_type:
+            # نجاح تسجيل الدخول، إعادة تعيين عدد المحاولات الفاشلة
+            user.failed_login_attempts = 0
+            db.session.commit()
+            
             login_user(user)
             # التوجيه بناءً على نوع المستخدم
             if user.user_type == 'admin':
@@ -173,7 +184,22 @@ def login():
             else:  # student
                 return redirect(url_for('student_dashboard'))
         else:
-            flash('خطأ في اسم المستخدم أو كلمة المرور أو نوع المستخدم', 'danger')
+            # فشل تسجيل الدخول
+            if user:
+                # زيادة عدد المحاولات الفاشلة
+                user.failed_login_attempts += 1
+                
+                # إذا تجاوز عدد المحاولات الفاشلة 10، قم بقفل الحساب
+                if user.failed_login_attempts >= 10:
+                    user.is_locked = True
+                    flash('تم قفل الحساب بسبب كثرة محاولات تسجيل الدخول الفاشلة. يرجى التواصل مع الإدارة.', 'danger')
+                else:
+                    attempts_left = 10 - user.failed_login_attempts
+                    flash(f'خطأ في اسم المستخدم أو كلمة المرور أو نوع المستخدم. محاولات متبقية: {attempts_left}', 'danger')
+                
+                db.session.commit()
+            else:
+                flash('خطأ في اسم المستخدم أو كلمة المرور أو نوع المستخدم', 'danger')
     
     return render_template('login.html')
 
@@ -1835,7 +1861,7 @@ def admin_dashboard():
 @login_required
 def admin_api_stats():
     if current_user.user_type != 'admin':
-        return jsonify({'error': 'غير مصرح لك بالوصول'}), 403
+        return jsonify({'error': 'Unauthorized'}), 403
     
     # إحصاءات أساسية
     stats = {
@@ -2020,7 +2046,7 @@ def admin_settings():
 @login_required
 def get_settings():
     if current_user.user_type != 'admin':
-        return jsonify({'error': 'غير مصرح لك بالوصول'}), 403
+        return jsonify({'error': 'Unauthorized'}), 403
     
     # جلب جميع الإعدادات
     settings = {}
@@ -2037,7 +2063,7 @@ def get_settings():
 @login_required
 def update_settings():
     if current_user.user_type != 'admin':
-        return jsonify({'error': 'غير مصرح لك بالوصول'}), 403
+        return jsonify({'error': 'Unauthorized'}), 403
     
     try:
         # استلام بيانات الإعدادات
@@ -2055,7 +2081,7 @@ def update_settings():
 @login_required
 def backup_database():
     if current_user.user_type != 'admin':
-        return jsonify({'error': 'غير مصرح لك بالوصول'}), 403
+        return jsonify({'error': 'Unauthorized'}), 403
     
     try:
         # إنشاء نسخة احتياطية من البيانات
@@ -2135,7 +2161,7 @@ def backup_database():
 @login_required
 def admin_get_users():
     if current_user.user_type != 'admin':
-        return jsonify({'error': 'غير مصرح لك بالوصول إلى بيانات المستخدمين'}), 403
+        return jsonify({'error': 'Unauthorized'}), 403
     
     user_type = request.args.get('user_type', '')
     
@@ -2151,7 +2177,9 @@ def admin_get_users():
             'id': user.id,
             'name': user.name,
             'username': user.username,
-            'user_type': user.user_type
+            'user_type': user.user_type,
+            'failed_login_attempts': user.failed_login_attempts,
+            'is_locked': user.is_locked
         }
         
         # إضافة بيانات الطالب إذا كان المستخدم طالب
@@ -2200,7 +2228,7 @@ def admin_get_courses():
 @login_required
 def admin_get_students():
     if current_user.user_type != 'admin':
-        return jsonify({'error': 'غير مصرح لك بالوصول إلى بيانات الطلاب'}), 403
+        return jsonify({'error': 'Unauthorized'}), 403
     
     # فلترة حسب المرحلة أو البحث
     stage = request.args.get('stage', type=int)
@@ -2225,7 +2253,9 @@ def admin_get_students():
             'name': user.name,
             'username': user.username,
             'stage': student.stage,
-            'user_id': student.user_id
+            'user_id': student.user_id,
+            'failed_login_attempts': user.failed_login_attempts,
+            'is_locked': user.is_locked
         })
     
     return jsonify(result)
@@ -2234,7 +2264,7 @@ def admin_get_students():
 @login_required
 def admin_get_student_details():
     if current_user.user_type != 'admin':
-        return jsonify({'error': 'غير مصرح لك بالوصول إلى بيانات الطلاب'}), 403
+        return jsonify({'error': 'Unauthorized'}), 403
     
     student_id = request.args.get('student_id', type=int)
     if not student_id:
@@ -2249,7 +2279,9 @@ def admin_get_student_details():
         'name': user.name,
         'username': user.username,
         'stage': student.stage,
-        'user_id': student.user_id
+        'user_id': student.user_id,
+        'failed_login_attempts': user.failed_login_attempts,
+        'is_locked': user.is_locked
     }
     
     return jsonify(result)
@@ -2258,7 +2290,7 @@ def admin_get_student_details():
 @login_required
 def admin_add_course():
     if current_user.user_type != 'admin':
-        return jsonify({'error': 'غير مصرح لك بإضافة مقررات'}), 403
+        return jsonify({'error': 'Unauthorized'}), 403
     
     try:
         name = request.form.get('name')
@@ -2295,7 +2327,7 @@ def admin_add_course():
 @login_required
 def admin_update_course():
     if current_user.user_type != 'admin':
-        return jsonify({'error': 'غير مصرح لك بتعديل المقررات'}), 403
+        return jsonify({'error': 'Unauthorized'}), 403
     
     try:
         course_id = request.form.get('course_id')
@@ -2338,7 +2370,7 @@ def admin_update_course():
 @login_required
 def admin_delete_course():
     if current_user.user_type != 'admin':
-        return jsonify({'error': 'غير مصرح لك بحذف المقررات'}), 403
+        return jsonify({'error': 'Unauthorized'}), 403
     
     try:
         course_id = request.form.get('course_id')
@@ -2364,7 +2396,7 @@ def admin_delete_course():
 @login_required
 def admin_get_user_details():
     if current_user.user_type != 'admin':
-        return jsonify({'error': 'غير مصرح لك بالوصول إلى بيانات المستخدمين'}), 403
+        return jsonify({'error': 'Unauthorized'}), 403
     
     user_id = request.args.get('user_id', type=int)
     if not user_id:
@@ -2376,7 +2408,9 @@ def admin_get_user_details():
         'id': user.id,
         'name': user.name,
         'username': user.username,
-        'user_type': user.user_type
+        'user_type': user.user_type,
+        'failed_login_attempts': user.failed_login_attempts,
+        'is_locked': user.is_locked
     }
     
     # إضافة بيانات الطالب إذا كان المستخدم طالب
@@ -2392,7 +2426,7 @@ def admin_get_user_details():
 @login_required
 def admin_get_student_grades_for_course():
     if current_user.user_type != 'admin':
-        return jsonify({'error': 'غير مصرح لك بالوصول إلى درجات الطلاب'}), 403
+        return jsonify({'error': 'Unauthorized'}), 403
     
     course_id = request.args.get('course_id', type=int)
     stage = request.args.get('stage', type=int)
@@ -2430,7 +2464,7 @@ def admin_get_student_grades_for_course():
 @login_required
 def admin_save_grades():
     if current_user.user_type != 'admin':
-        return jsonify({'error': 'غير مصرح لك بتعديل درجات الطلاب'}), 403
+        return jsonify({'error': 'Unauthorized'}), 403
     
     try:
         # استلام بيانات الدرجات
@@ -2516,7 +2550,7 @@ def admin_save_grades():
 @login_required
 def admin_stats_students():
     if current_user.user_type != 'admin':
-        return jsonify({'error': 'غير مصرح لك بالوصول إلى الإحصائيات'}), 403
+        return jsonify({'error': 'Unauthorized'}), 403
     
     total_students = Student.query.count()
     
@@ -2535,7 +2569,7 @@ def admin_stats_students():
 @login_required
 def admin_stats_courses():
     if current_user.user_type != 'admin':
-        return jsonify({'error': 'غير مصرح لك بالوصول إلى الإحصائيات'}), 403
+        return jsonify({'error': 'Unauthorized'}), 403
     
     total_courses = Course.query.count()
     
@@ -2559,7 +2593,7 @@ def admin_stats_courses():
 @login_required
 def admin_stats_success_rate_by_stage():
     if current_user.user_type != 'admin':
-        return jsonify({'error': 'غير مصرح لك بالوصول إلى الإحصائيات'}), 403
+        return jsonify({'error': 'Unauthorized'}), 403
     
     success_rates = []
     
@@ -2591,7 +2625,7 @@ def admin_stats_success_rate_by_stage():
 @login_required
 def admin_stats_grade_distribution():
     if current_user.user_type != 'admin':
-        return jsonify({'error': 'غير مصرح لك بالوصول إلى الإحصائيات'}), 403
+        return jsonify({'error': 'Unauthorized'}), 403
     
     stage = request.args.get('stage', type=int)
     semester = request.args.get('semester', type=int)
@@ -2647,7 +2681,7 @@ def admin_stats_grade_distribution():
 @login_required
 def admin_stats_top_bottom_students():
     if current_user.user_type != 'admin':
-        return jsonify({'error': 'غير مصرح لك بالوصول إلى الإحصائيات'}), 403
+        return jsonify({'error': 'Unauthorized'}), 403
     
     # جلب جميع الطلاب وحساب متوسط درجاتهم
     students = Student.query.all()
@@ -2689,7 +2723,7 @@ def admin_stats_top_bottom_students():
 @login_required
 def admin_stats_hardest_courses():
     if current_user.user_type != 'admin':
-        return jsonify({'error': 'غير مصرح لك بالوصول إلى الإحصائيات'}), 403
+        return jsonify({'error': 'Unauthorized'}), 403
     
     courses = Course.query.all()
     course_success_rates = []
@@ -2730,7 +2764,7 @@ def admin_stats_hardest_courses():
 @login_required
 def admin_export_students():
     if current_user.user_type != 'admin':
-        return jsonify({'error': 'غير مصرح لك بتصدير بيانات الطلاب'}), 403
+        return jsonify({'error': 'Unauthorized'}), 403
     
     format_type = request.args.get('format', 'csv')
     stage = request.args.get('stage', type=int)
@@ -2849,7 +2883,7 @@ def admin_export_students():
 @login_required
 def admin_import_students():
     if current_user.user_type != 'admin':
-        return jsonify({'error': 'غير مصرح لك باستيراد بيانات الطلاب'}), 403
+        return jsonify({'error': 'Unauthorized'}), 403
     
     if 'students_file' not in request.files:
         return jsonify({'error': 'لم يتم تحديد ملف'}), 400
@@ -2967,6 +3001,26 @@ def initialize_settings():
     except Exception as e:
         app.logger.error(f"خطأ في تهيئة الإعدادات: {str(e)}")
         db.session.rollback()
+
+@app.route('/admin/reset_user_attempts/<int:user_id>', methods=['POST'])
+@login_required
+def admin_reset_user_attempts(user_id):
+    if current_user.user_type != 'admin':
+        flash('غير مصرح لك بالوصول إلى هذه الصفحة', 'danger')
+        return redirect(url_for('login'))
+    
+    user = User.query.get(user_id)
+    if not user:
+        flash('لم يتم العثور على المستخدم', 'danger')
+        return redirect(url_for('admin_users'))
+    
+    # إعادة تعيين عدد المحاولات الفاشلة وإلغاء قفل الحساب
+    user.failed_login_attempts = 0
+    user.is_locked = False
+    db.session.commit()
+    
+    flash(f'تم إعادة تعيين محاولات تسجيل الدخول وإلغاء قفل حساب {user.username} بنجاح', 'success')
+    return redirect(url_for('admin_get_user_details', user_id=user_id))
 
 if __name__ == '__main__':
     init_db()
