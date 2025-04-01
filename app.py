@@ -20,6 +20,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from OpenSSL import crypto
 
 # تكوين مجلد لتخزين الملفات المرفوعة
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
@@ -144,19 +145,43 @@ def index():
     # حتى لو كان مسجل الدخول بالفعل، سيظهر له صفحة تسجيل الدخول عند فتح الرابط الرئيسي
     # إذا كان يريد الوصول إلى لوحة التحكم، فسيحتاج إلى النقر على الرابط المناسب
     if current_user.is_authenticated:
-        logout_user()  # تسجيل خروج المستخدم الحالي
+        # التحقق من الصفحة النشطة المخزنة في الجلسة
+        active_page = session.get('active_page')
+        
+        if active_page == 'instructor_dashboard':
+            return redirect(url_for('instructor_dashboard'))
+        elif active_page == 'student_dashboard':
+            return redirect(url_for('student_dashboard'))
+        elif active_page == 'admin_dashboard':
+            return redirect(url_for('admin_dashboard'))
+        else:
+            logout_user()  # تسجيل خروج المستخدم الحالي
+            
     return redirect(url_for('login'))
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
-        # التوجيه بناءً على نوع المستخدم
-        if current_user.user_type == 'admin':
-            return redirect(url_for('admin_dashboard'))
-        elif current_user.user_type == 'instructor':
+        # التوجيه بناءً على نوع المستخدم وآخر صفحة نشطة
+        active_page = session.get('active_page')
+        
+        if active_page == 'instructor_dashboard':
             return redirect(url_for('instructor_dashboard'))
-        else:  # student
+        elif active_page == 'student_dashboard':
             return redirect(url_for('student_dashboard'))
+        elif active_page == 'admin_dashboard':
+            return redirect(url_for('admin_dashboard'))
+        else:
+            # التوجيه بناءً على نوع المستخدم إذا لم تكن هناك صفحة نشطة محفوظة
+            if current_user.user_type == 'admin':
+                session['active_page'] = 'admin_dashboard'
+                return redirect(url_for('admin_dashboard'))
+            elif current_user.user_type == 'instructor':
+                session['active_page'] = 'instructor_dashboard'
+                return redirect(url_for('instructor_dashboard'))
+            else:  # student
+                session['active_page'] = 'student_dashboard'
+                return redirect(url_for('student_dashboard'))
     
     if request.method == 'POST':
         username = request.form.get('username')
@@ -178,10 +203,13 @@ def login():
             login_user(user)
             # التوجيه بناءً على نوع المستخدم
             if user.user_type == 'admin':
+                session['active_page'] = 'admin_dashboard'
                 return redirect(url_for('admin_dashboard'))
             elif user.user_type == 'instructor':
+                session['active_page'] = 'instructor_dashboard'
                 return redirect(url_for('instructor_dashboard'))
             else:  # student
+                session['active_page'] = 'student_dashboard'
                 return redirect(url_for('student_dashboard'))
         else:
             # فشل تسجيل الدخول
@@ -216,6 +244,9 @@ def instructor_dashboard():
         flash('غير مصرح لك بالوصول إلى هذه الصفحة', 'danger')
         return redirect(url_for('login'))
     
+    # تخزين معلومات الصفحة الحالية في الجلسة
+    session['active_page'] = 'instructor_dashboard'
+    
     stages = [1, 2, 3, 4]
     return render_template('instructor_dashboard.html', stages=stages)
 
@@ -235,6 +266,9 @@ def student_dashboard():
     if current_user.user_type != 'student':
         flash('غير مصرح لك بالوصول إلى هذه الصفحة', 'danger')
         return redirect(url_for('login'))
+    
+    # تخزين معلومات الصفحة الحالية في الجلسة
+    session['active_page'] = 'student_dashboard'
     
     student = Student.query.filter_by(user_id=current_user.id).first()
     if not student:
@@ -769,6 +803,7 @@ def add_student():
     name = request.form.get('name')
     username = request.form.get('username')
     password = request.form.get('password', 'password')  # كلمة مرور افتراضية إذا لم يتم تحديدها
+    stage = request.form.get('stage', '1')  # استلام المرحلة من النموذج، ووضع المرحلة الأولى كقيمة افتراضية
     
     # التحقق من صحة البيانات
     if not all([name, username]):
@@ -817,13 +852,13 @@ def add_student():
         student = Student(
             user_id=user.id,
             student_id=student_id,
-            stage=1  # تعيين المرحلة الأولى افتراضيًا
+            stage=int(stage)  # استخدام المرحلة المحددة من النموذج
         )
         db.session.add(student)
         success_count = 1
         
         # إنشاء سجلات درجات فارغة للطالب
-        courses = Course.query.filter_by(stage=1).all()  # المرحلة الأولى افتراضيًا
+        courses = Course.query.filter_by(stage=int(stage)).all()  # استخدام المرحلة المحددة بدلاً من الافتراضية
         for course in courses:
             grade = Grade(
                 student_id=student.id,
@@ -963,8 +998,32 @@ def update_student():
         if not student:
             return jsonify({'error': 'لم يتم العثور على الطالب'}), 404
         
+        # حفظ المرحلة القديمة قبل التحديث
+        old_stage = student.stage
+        
         student.student_id = student_id_number
         student.stage = int(stage)
+        
+        # إذا تغيرت المرحلة، نقوم بإنشاء سجلات درجات جديدة للمقررات في المرحلة الجديدة
+        if old_stage != int(stage):
+            # الحصول على المقررات في المرحلة الجديدة
+            new_stage_courses = Course.query.filter_by(stage=int(stage)).all()
+            
+            # إنشاء سجلات درجات فارغة للطالب في المقررات الجديدة
+            current_year = datetime.now().year
+            for course in new_stage_courses:
+                # التحقق من عدم وجود سجل درجات للطالب في هذا المقرر
+                existing_grade = Grade.query.filter_by(student_id=student.id, course_id=course.id).first()
+                if not existing_grade:
+                    grade = Grade(
+                        student_id=student.id,
+                        course_id=course.id,
+                        coursework=0,
+                        final_exam=0,
+                        decision_marks=0,
+                        academic_year=f"{current_year-1}/{current_year+1}"
+                    )
+                    db.session.add(grade)
         
         db.session.commit()
         
@@ -2103,6 +2162,7 @@ def backup_database():
         # تخزين بيانات الطلاب
         for student in students:
             user = User.query.get(student.user_id)
+            
             backup_data['students'].append({
                 'student_id': student.student_id,
                 'name': user.name,
@@ -2469,13 +2529,9 @@ def admin_save_grades():
     try:
         # استلام بيانات الدرجات
         data = request.json
-        if not data or 'grades' not in data:
-            return jsonify({'error': 'بيانات الدرجات غير متوفرة'}), 400
         
-        grades = data['grades']
-        updated_grades = []
-        
-        for grade_data in grades:
+        # تحديث الدرجات
+        for grade_data in data['grades']:
             student_id = grade_data.get('student_id')
             course_id = grade_data.get('course_id')
             grade_id = grade_data.get('grade_id')
@@ -3024,4 +3080,41 @@ def admin_reset_user_attempts(user_id):
 
 if __name__ == '__main__':
     init_db()
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)
+    # إنشاء ملفات الشهادة إذا لم تكن موجودة
+    cert_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'certificates')
+    cert_file = os.path.join(cert_dir, 'cert.pem')
+    key_file = os.path.join(cert_dir, 'key.pem')
+    
+    # إنشاء مجلد الشهادات إذا لم يكن موجوداً
+    if not os.path.exists(cert_dir):
+        os.makedirs(cert_dir)
+    
+    # إنشاء شهادة SSL ذاتية التوقيع إذا لم تكن موجودة
+    if not (os.path.exists(cert_file) and os.path.exists(key_file)):
+        k = crypto.PKey()
+        k.generate_key(crypto.TYPE_RSA, 2048)
+        
+        cert = crypto.X509()
+        cert.get_subject().C = "IQ"  # رمز الدولة
+        cert.get_subject().ST = "Baghdad"  # المحافظة
+        cert.get_subject().L = "Baghdad"  # المدينة
+        cert.get_subject().O = "Examination System"  # اسم المنظمة
+        cert.get_subject().OU = "Education"  # وحدة المنظمة
+        cert.get_subject().CN = "localhost"  # الاسم المشترك
+        cert.set_serial_number(1000)
+        cert.gmtime_adj_notBefore(0)
+        cert.gmtime_adj_notAfter(10*365*24*60*60)  # صالحة لمدة 10 سنوات
+        cert.set_issuer(cert.get_subject())
+        cert.set_pubkey(k)
+        cert.sign(k, 'sha256')
+        
+        with open(key_file, "wb") as f:
+            f.write(crypto.dump_privatekey(crypto.FILETYPE_PEM, k))
+        
+        with open(cert_file, "wb") as f:
+            f.write(crypto.dump_certificate(crypto.FILETYPE_PEM, cert))
+        
+        print(f"تم إنشاء شهادة SSL بنجاح في {cert_dir}")
+    
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False, 
+            ssl_context=(cert_file, key_file))
