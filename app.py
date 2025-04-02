@@ -47,7 +47,24 @@ if not os.path.exists(UPLOAD_FOLDER):
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-here'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///examination.db'
+
+# إعداد whitenoise لخدمة الملفات الثابتة في الإنتاج
+if 'RENDER' in os.environ:
+    try:
+        from whitenoise import WhiteNoise
+        app.wsgi_app = WhiteNoise(app.wsgi_app, root='static/')
+        app.wsgi_app.add_files('static/', prefix='static/')
+    except ImportError:
+        pass  # تخطي إذا لم تكن مكتبة whitenoise مثبتة
+# تكوين قاعدة البيانات مع دعم بيئة الإنتاج
+if 'RENDER' in os.environ:
+    # على منصة Render
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///examination.db')
+    if app.config['SQLALCHEMY_DATABASE_URI'].startswith('postgres://'):
+        app.config['SQLALCHEMY_DATABASE_URI'] = app.config['SQLALCHEMY_DATABASE_URI'].replace('postgres://', 'postgresql://', 1)
+else:
+    # في بيئة التطوير المحلية
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///examination.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQL_SCHEMA_FILE'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'database_schema.sql')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -191,6 +208,11 @@ def check_user_access():
 def index():
     # التوجيه دائمًا إلى صفحة تسجيل الدخول بغض النظر عن حالة المستخدم
     return redirect(url_for('login'))
+
+# مسار فحص صحة التطبيق لمنصة Render
+@app.route('/health')
+def health_check():
+    return jsonify({'status': 'healthy'}), 200
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -3613,90 +3635,50 @@ def admin_delete_grade():
 
 if __name__ == '__main__':
     init_db()
-    # إنشاء ملفات الشهادة إذا لم تكن موجودة
-    cert_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'certificates')
-    cert_file = os.path.join(cert_dir, 'cert.pem')
-    key_file = os.path.join(cert_dir, 'key.pem')
     
-    # إنشاء مجلد الشهادات إذا لم يكن موجوداً
-    if not os.path.exists(cert_dir):
-        os.makedirs(cert_dir)
+    # تحديد ما إذا كان التطبيق يعمل على منصة Render
+    is_production = 'RENDER' in os.environ
     
-    # إنشاء شهادة SSL ذاتية التوقيع إذا لم تكن موجودة
-    if not (os.path.exists(cert_file) and os.path.exists(key_file)):
-        k = crypto.PKey()
-        k.generate_key(crypto.TYPE_RSA, 2048)
+    if not is_production:
+        # إنشاء ملفات الشهادة إذا لم تكن موجودة (للتطوير المحلي فقط)
+        cert_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ssl')
+        cert_file = os.path.join(cert_dir, 'cert.pem')
+        key_file = os.path.join(cert_dir, 'key.pem')
         
-        cert = crypto.X509()
-        cert.get_subject().C = "IQ"  # رمز الدولة
-        cert.get_subject().ST = "Baghdad"  # المحافظة
-        cert.get_subject().L = "Baghdad"  # المدينة
-        cert.get_subject().O = "Examination System"  # اسم المنظمة
-        cert.get_subject().OU = "Education"  # وحدة المنظمة
-        cert.get_subject().CN = "localhost"  # الاسم المشترك
-        cert.set_serial_number(1000)
-        cert.gmtime_adj_notBefore(0)
-        cert.gmtime_adj_notAfter(10*365*24*60*60)  # صالحة لمدة 10 سنوات
-        cert.set_issuer(cert.get_subject())
-        cert.set_pubkey(k)
-        cert.sign(k, 'sha256')
+        # إنشاء مجلد الشهادات إذا لم يكن موجوداً
+        if not os.path.exists(cert_dir):
+            os.makedirs(cert_dir)
         
-        with open(key_file, "wb") as f:
-            f.write(crypto.dump_privatekey(crypto.FILETYPE_PEM, k))
-        
-        with open(cert_file, "wb") as f:
-            f.write(crypto.dump_certificate(crypto.FILETYPE_PEM, cert))
-        
-        print(f"تم إنشاء شهادة SSL بنجاح في {cert_dir}")
-    
-    # تعديل هنا: تعديل ملف app.py لتمكين العمل بشكل صحيح على منصة Render بدون SSL محلي
-    if __name__ == '__main__':
-        init_db()
-        
-        # تحديد ما إذا كان التطبيق يعمل على منصة Render
-        is_production = 'RENDER' in os.environ
-        
-        if not is_production:
-            # إنشاء ملفات الشهادة إذا لم تكن موجودة (للتطوير المحلي فقط)
-            cert_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'certificates')
-            cert_file = os.path.join(cert_dir, 'cert.pem')
-            key_file = os.path.join(cert_dir, 'key.pem')
+        # إنشاء شهادة SSL ذاتية التوقيع إذا لم تكن موجودة
+        if not (os.path.exists(cert_file) and os.path.exists(key_file)):
+            k = crypto.PKey()
+            k.generate_key(crypto.TYPE_RSA, 2048)
             
-            # إنشاء مجلد الشهادات إذا لم يكن موجوداً
-            if not os.path.exists(cert_dir):
-                os.makedirs(cert_dir)
+            cert = crypto.X509()
+            cert.get_subject().C = "SA"  # الدولة
+            cert.get_subject().ST = "Riyadh"  # المنطقة/المدينة
+            cert.get_subject().L = "Riyadh"  # الموقع
+            cert.get_subject().O = "Examination System"  # اسم المؤسسة
+            cert.get_subject().OU = "IT Department"  # اسم القسم
+            cert.get_subject().CN = "localhost"  # الاسم المشترك
+            cert.set_serial_number(1000)
+            cert.gmtime_adj_notBefore(0)
+            cert.gmtime_adj_notAfter(10*365*24*60*60)  # صالحة لمدة 10 سنوات
+            cert.set_issuer(cert.get_subject())
+            cert.set_pubkey(k)
+            cert.sign(k, 'sha256')
             
-            # إنشاء شهادة SSL ذاتية التوقيع إذا لم تكن موجودة
-            if not (os.path.exists(cert_file) and os.path.exists(key_file)):
-                k = crypto.PKey()
-                k.generate_key(crypto.TYPE_RSA, 2048)
-                
-                cert = crypto.X509()
-                cert.get_subject().C = "IQ"  # رمز الدولة
-                cert.get_subject().ST = "Baghdad"  # المحافظة
-                cert.get_subject().L = "Baghdad"  # المدينة
-                cert.get_subject().O = "Examination System"  # اسم المنظمة
-                cert.get_subject().OU = "Education"  # وحدة المنظمة
-                cert.get_subject().CN = "localhost"  # الاسم المشترك
-                cert.set_serial_number(1000)
-                cert.gmtime_adj_notBefore(0)
-                cert.gmtime_adj_notAfter(10*365*24*60*60)  # صالحة لمدة 10 سنوات
-                cert.set_issuer(cert.get_subject())
-                cert.set_pubkey(k)
-                cert.sign(k, 'sha256')
-                
-                with open(key_file, "wb") as f:
-                    f.write(crypto.dump_privatekey(crypto.FILETYPE_PEM, k))
-                
-                with open(cert_file, "wb") as f:
-                    f.write(crypto.dump_certificate(crypto.FILETYPE_PEM, cert))
-                
-                print(f"تم إنشاء شهادة SSL بنجاح في {cert_dir}")
+            with open(key_file, "wb") as f:
+                f.write(crypto.dump_privatekey(crypto.FILETYPE_PEM, k))
             
-            # تشغيل التطبيق محلياً مع SSL
-            app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=True, 
-                    ssl_context=(cert_file, key_file))
-        else:
-            # تشغيل التطبيق على Render بدون تكوين SSL (Render يتعامل مع SSL)
-            port = int(os.environ.get('PORT', 5000))
-            app.run(host='0.0.0.0', port=port, debug=False)
+            with open(cert_file, "wb") as f:
+                f.write(crypto.dump_certificate(crypto.FILETYPE_PEM, cert))
+            
+            print(f"تم إنشاء شهادة SSL بنجاح في {cert_dir}")
+        
+        # تشغيل التطبيق محلياً مع SSL
+        app.run(debug=True, host='0.0.0.0', ssl_context=(cert_file, key_file))
+    else:
+        # تشغيل التطبيق على Render بدون تكوين SSL (Render يتعامل مع SSL)
+        port = int(os.environ.get('PORT', 5000))
+        app.run(host='0.0.0.0', port=port, debug=False)

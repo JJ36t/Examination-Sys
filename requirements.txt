@@ -35,3 +35,6 @@ tzdata==2025.1
 Werkzeug==2.3.7
 WTForms==3.2.1
 xlsxwriter==3.2.2
+# إضافات لدعم النشر على منصة Render
+whitenoise==6.7.0  # لتقديم الملفات الثابتة
+pg8000==1.30.4  # لزيادة توافق PostgreSQL
