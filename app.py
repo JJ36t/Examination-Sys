@@ -22,6 +22,21 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from OpenSSL import crypto
 
+# دالة لحساب تقدير الدرجة بناءً على المجموع
+def calculate_grade_evaluation(total):
+    if total >= 90:
+        return 'امتياز'
+    elif total >= 80:
+        return 'جيد جداً'
+    elif total >= 70:
+        return 'جيد'
+    elif total >= 60:
+        return 'مقبول'
+    elif total >= 50:
+        return 'ضعيف'
+    else:
+        return 'راسب'
+
 # تكوين مجلد لتخزين الملفات المرفوعة
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
 ALLOWED_EXTENSIONS = {'csv', 'xlsx', 'xls'}
@@ -922,7 +937,7 @@ def get_all_students_for_modification():
 @app.route('/search_student_for_modification', methods=['POST'])
 @login_required
 def search_student_for_modification():
-    if current_user.user_type != 'instructor':
+    if current_user.user_type not in ['instructor', 'admin']:
         return jsonify({'error': 'غير مصرح لك بالوصول إلى هذه البيانات'}), 403
     
     search_term = request.form.get('search_term', '')
@@ -3067,25 +3082,534 @@ def initialize_settings():
         app.logger.error(f"خطأ في تهيئة الإعدادات: {str(e)}")
         db.session.rollback()
 
-@app.route('/admin/reset_user_attempts/<int:user_id>', methods=['POST'])
+# استيراد درجات الطلاب
+@app.route('/admin/import/courses', methods=['POST'])
+@login_required
+def admin_import_courses():
+    if current_user.user_type != 'admin':
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    if 'courses_file' not in request.files:
+        return jsonify({'error': 'لم يتم تحديد ملف'}), 400
+    
+    file = request.files['courses_file']
+    if file.filename == '':
+        return jsonify({'error': 'لم يتم اختيار ملف'}), 400
+    
+    # التحقق من نوع الملف
+    if not (file.filename.endswith('.csv') or file.filename.endswith('.xlsx') or file.filename.endswith('.xls')):
+        return jsonify({'error': 'نوع الملف غير مدعوم. يرجى استخدام CSV أو Excel'}), 400
+    
+    try:
+        if file.filename.endswith('.csv'):
+            # استيراد من CSV
+            df = pd.read_csv(file, encoding='utf-8')
+        else:
+            # استيراد من Excel
+            df = pd.read_excel(file)
+        
+        # التحقق من وجود الأعمدة المطلوبة
+        required_columns = ['name', 'stage', 'semester', 'units']
+        for column in required_columns:
+            if column not in df.columns:
+                return jsonify({'error': f'العمود "{column}" مفقود من الملف'}), 400
+        
+        # تحويل DataFrame إلى قائمة من القواميس
+        data = df.to_dict('records')
+        
+        # استدعاء دالة استيراد المقررات
+        result = import_courses(data)
+        
+        return jsonify({
+            'success': True,
+            'message': f'تم استيراد {result["success_count"]} مقرر بنجاح',
+            'imported_count': result['success_count'],
+            'errors': result.get('errors', [])
+        })
+    
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'حدث خطأ أثناء استيراد بيانات المقررات: {str(e)}'}), 500
+
+# تصدير بيانات المقررات
+@app.route('/admin/export/courses')
+@login_required
+def admin_export_courses():
+    if current_user.user_type != 'admin':
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    format_type = request.args.get('format', 'csv')
+    
+    # جلب بيانات المقررات
+    courses = Course.query.all()
+    
+    # تحضير البيانات للتصدير
+    data = []
+    for course in courses:
+        data.append({
+            'id': course.id,
+            'name': course.name,
+            'stage': course.stage,
+            'semester': course.semester,
+            'units': course.units
+        })
+    
+    if format_type == 'csv':
+        # تصدير كملف CSV
+        output = io.StringIO()
+        writer = csv.DictWriter(output, fieldnames=data[0].keys() if data else [])
+        writer.writeheader()
+        writer.writerows(data)
+        
+        response = make_response(output.getvalue())
+        response.headers['Content-Disposition'] = 'attachment; filename=courses.csv'
+        response.headers['Content-Type'] = 'text/csv; charset=utf-8'
+        return response
+    
+    elif format_type == 'excel':
+        # تصدير كملف Excel
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            df = pd.DataFrame(data)
+            df.to_excel(writer, sheet_name='Courses', index=False)
+        
+        output.seek(0)
+        response = make_response(output.getvalue())
+        response.headers['Content-Disposition'] = 'attachment; filename=courses.xlsx'
+        response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        return response
+    
+    elif format_type == 'pdf':
+        # تصدير كملف PDF
+        buffer = io.BytesIO()
+        p = canvas.Canvas(buffer, pagesize=letter)
+        p.setFont('Helvetica', 10)
+        
+        # تحضير البيانات للطباعة
+        y_position = 750
+        p.drawString(100, y_position, 'تقرير المقررات الدراسية')
+        y_position -= 20
+        
+        # طباعة رؤوس الجدول
+        headers = ['معرف المقرر', 'اسم المقرر', 'المرحلة', 'الفصل الدراسي', 'عدد الوحدات']
+        x_positions = [450, 350, 250, 150, 50]
+        
+        for i, header in enumerate(headers):
+            p.drawString(x_positions[i], y_position, header)
+        
+        y_position -= 15
+        p.line(20, y_position, 550, y_position)
+        y_position -= 15
+        
+        # طباعة بيانات المقررات
+        for item in data:
+            if y_position < 50:  # انتقال إلى صفحة جديدة عندما تكون الصفحة ممتلئة
+                p.showPage()
+                p.setFont('Helvetica', 10)
+                y_position = 750
+            
+            p.drawString(450, y_position, str(item['id']))
+            p.drawString(350, y_position, item['name'])
+            p.drawString(250, y_position, str(item['stage']))
+            p.drawString(150, y_position, str(item['semester']))
+            p.drawString(50, y_position, str(item['units']))
+            
+            y_position -= 15
+        
+        p.save()
+        buffer.seek(0)
+        
+        response = make_response(buffer.getvalue())
+        response.headers['Content-Disposition'] = 'attachment; filename=courses.pdf'
+        response.headers['Content-Type'] = 'application/pdf'
+        return response
+    
+    else:
+        return jsonify({'error': 'صيغة التصدير غير مدعومة'}), 400
+
+# استيراد درجات الطلاب
+@app.route('/admin/import/grades', methods=['POST'])
+@login_required
+def admin_import_grades():
+    if current_user.user_type != 'admin':
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    if 'grades_file' not in request.files:
+        return jsonify({'error': 'لم يتم تحديد ملف'}), 400
+    
+    file = request.files['grades_file']
+    if file.filename == '':
+        return jsonify({'error': 'لم يتم اختيار ملف'}), 400
+    
+    # التحقق من نوع الملف
+    if not (file.filename.endswith('.csv') or file.filename.endswith('.xlsx') or file.filename.endswith('.xls')):
+        return jsonify({'error': 'نوع الملف غير مدعوم. يرجى استخدام CSV أو Excel'}), 400
+    
+    try:
+        if file.filename.endswith('.csv'):
+            # استيراد من CSV
+            df = pd.read_csv(file, encoding='utf-8')
+        else:
+            # استيراد من Excel
+            df = pd.read_excel(file)
+        
+        # التحقق من وجود الأعمدة المطلوبة
+        required_columns = ['student_id', 'course_id', 'coursework', 'final_exam']
+        for column in required_columns:
+            if column not in df.columns:
+                return jsonify({'error': f'العمود "{column}" مفقود من الملف'}), 400
+        
+        # تحويل DataFrame إلى قائمة من القواميس
+        data = df.to_dict('records')
+        
+        # استدعاء دالة استيراد الدرجات
+        result = import_grades(data)
+        
+        return jsonify({
+            'success': True,
+            'message': f'تم استيراد {result["success_count"]} درجة بنجاح',
+            'imported_count': result['success_count'],
+            'errors': result.get('errors', [])
+        })
+    
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'حدث خطأ أثناء استيراد بيانات الدرجات: {str(e)}'}), 500
+
+# تصدير درجات الطلاب
+@app.route('/admin/export/grades')
+@login_required
+def admin_export_grades():
+    if current_user.user_type != 'admin':
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    format_type = request.args.get('format', 'csv')
+    stage = request.args.get('stage', type=int)
+    course_id = request.args.get('course_id', type=int)
+    
+    # جلب بيانات الدرجات
+    grades_query = Grade.query.join(Student, Student.id == Grade.student_id).join(Course, Course.id == Grade.course_id).join(User, User.id == Student.user_id)
+    
+    if stage:
+        grades_query = grades_query.filter(Student.stage == stage)
+    
+    if course_id:
+        grades_query = grades_query.filter(Grade.course_id == course_id)
+    
+    grades = grades_query.all()
+    
+    # تحضير البيانات للتصدير
+    data = []
+    for grade in grades:
+        student = Student.query.get(grade.student_id)
+        course = Course.query.get(grade.course_id)
+        user = User.query.get(student.user_id)
+        
+        data.append({
+            'student_id': student.student_id,
+            'student_name': user.name,
+            'course_id': course.id,
+            'course_name': course.name,
+            'stage': student.stage,
+            'coursework': grade.coursework,
+            'final_exam': grade.final_exam,
+            'decision_marks': grade.decision_marks,
+            'total': grade.total,
+            'grade_status': grade.grade_status,
+            'grade_evaluation': grade.grade_evaluation,
+            'academic_year': grade.academic_year
+        })
+    
+    if format_type == 'csv':
+        # تصدير كملف CSV
+        output = io.StringIO()
+        writer = csv.DictWriter(output, fieldnames=data[0].keys() if data else [])
+        writer.writeheader()
+        writer.writerows(data)
+        
+        response = make_response(output.getvalue())
+        response.headers['Content-Disposition'] = 'attachment; filename=grades.csv'
+        response.headers['Content-Type'] = 'text/csv; charset=utf-8'
+        return response
+    
+    elif format_type == 'excel':
+        # تصدير كملف Excel
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            df = pd.DataFrame(data)
+            df.to_excel(writer, sheet_name='Grades', index=False)
+        
+        output.seek(0)
+        response = make_response(output.getvalue())
+        response.headers['Content-Disposition'] = 'attachment; filename=grades.xlsx'
+        response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        return response
+    
+    elif format_type == 'pdf':
+        # تصدير كملف PDF
+        buffer = io.BytesIO()
+        p = canvas.Canvas(buffer, pagesize=letter)
+        p.setFont('Helvetica', 10)
+        
+        # تحضير البيانات للطباعة
+        y_position = 750
+        p.drawString(100, y_position, 'تقرير درجات الطلاب')
+        y_position -= 20
+        
+        # طباعة رؤوس الجدول
+        headers = ['اسم الطالب', 'رقم الطالب', 'المقرر', 'أعمال الفصل', 'الامتحان النهائي', 'درجات القرار', 'المجموع', 'التقدير']
+        x_positions = [450, 380, 300, 240, 170, 110, 70, 20]
+        
+        for i, header in enumerate(headers):
+            p.drawString(x_positions[i], y_position, header)
+        
+        y_position -= 15
+        p.line(20, y_position, 550, y_position)
+        y_position -= 15
+        
+        # طباعة بيانات الطلاب
+        for item in data:
+            if y_position < 50:  # انتقال إلى صفحة جديدة عندما تكون الصفحة ممتلئة
+                p.showPage()
+                p.setFont('Helvetica', 10)
+                y_position = 750
+            
+            p.drawString(450, y_position, item['student_name'])
+            p.drawString(380, y_position, str(item['student_id']))
+            p.drawString(300, y_position, item['course_name'])
+            p.drawString(240, y_position, str(item['coursework']))
+            p.drawString(170, y_position, str(item['final_exam']))
+            p.drawString(110, y_position, str(item['decision_marks']))
+            p.drawString(70, y_position, str(item['total']))
+            p.drawString(20, y_position, item['grade_evaluation'])
+            
+            y_position -= 15
+        
+        p.save()
+        buffer.seek(0)
+        
+        response = make_response(buffer.getvalue())
+        response.headers['Content-Disposition'] = 'attachment; filename=grades.pdf'
+        response.headers['Content-Type'] = 'application/pdf'
+        return response
+    
+    else:
+        return jsonify({'error': 'صيغة التصدير غير مدعومة'}), 400
+
+@app.route('/admin/reset_attempts/<int:user_id>', methods=['POST'])
 @login_required
 def admin_reset_user_attempts(user_id):
     if current_user.user_type != 'admin':
-        flash('غير مصرح لك بالوصول إلى هذه الصفحة', 'danger')
-        return redirect(url_for('login'))
+        return jsonify({'error': 'Unauthorized'}), 403
     
     user = User.query.get(user_id)
     if not user:
-        flash('لم يتم العثور على المستخدم', 'danger')
-        return redirect(url_for('admin_users'))
+        return jsonify({'error': 'المستخدم غير موجود'}), 404
     
-    # إعادة تعيين عدد المحاولات الفاشلة وإلغاء قفل الحساب
     user.failed_login_attempts = 0
     user.is_locked = False
     db.session.commit()
     
+    return jsonify({
+        'success': True,
+        'message': f'تم إعادة ضبط محاولات تسجيل الدخول للمستخدم {user.username}'
+    })
     flash(f'تم إعادة تعيين محاولات تسجيل الدخول وإلغاء قفل حساب {user.username} بنجاح', 'success')
     return redirect(url_for('admin_users'))
+
+# استيراد درجات الطلاب
+
+
+# صفحة عرض درجات طالب محدد
+@app.route('/admin/student_grades/<int:student_id>')
+@login_required
+def admin_student_grades(student_id):
+    if current_user.user_type != 'admin':
+        flash('غير مصرح لك بالوصول إلى هذه الصفحة', 'danger')
+        return redirect(url_for('login'))
+    
+    # التحقق من وجود الطالب
+    student = Student.query.get(student_id)
+    if not student:
+        flash('الطالب غير موجود', 'danger')
+        return redirect(url_for('admin_students'))
+    
+    # جلب بيانات المستخدم
+    user = User.query.get(student.user_id)
+    
+    # جلب درجات الطالب
+    grades = Grade.query.join(Course, Course.id == Grade.course_id)\
+                    .filter(Grade.student_id == student_id)\
+                    .order_by(Course.stage, Course.semester, Course.name).all()
+    
+    # جلب جميع المقررات مرتبة حسب المرحلة
+    courses = Course.query.order_by(Course.stage, Course.semester, Course.name).all()
+    
+    # تنظيم المقررات حسب المرحلة لتسهيل العرض في القالب
+    courses_by_stage = {}
+    for stage in range(1, 5):
+        courses_by_stage[stage] = [course for course in courses if course.stage == stage]
+    
+    return render_template('admin_student_grades.html', 
+                          student=student, 
+                          user=user, 
+                          grades=grades, 
+                          courses=courses, 
+                          courses_by_stage=courses_by_stage,
+                          active_page='students')
+
+# إضافة درجة جديدة
+@app.route('/admin/add_grade', methods=['POST'])
+@login_required
+def admin_add_grade():
+    if current_user.user_type != 'admin':
+        return jsonify({'error': 'غير مصرح لك بالوصول إلى هذه الوظيفة'}), 403
+    
+    try:
+        student_id = request.form.get('student_id', type=int)
+        course_id = request.form.get('course_id', type=int)
+        coursework = request.form.get('coursework', type=float)
+        final_exam = request.form.get('final_exam', type=float)
+        decision_marks = request.form.get('decision_marks', type=float, default=0)
+        academic_year = request.form.get('academic_year')
+        
+        # التحقق من المدخلات
+        if not all([student_id, course_id, coursework is not None, final_exam is not None, academic_year]):
+            return jsonify({'error': 'جميع الحقول المطلوبة يجب تعبئتها'}), 400
+        
+        # التحقق من عدم وجود درجة سابقة لنفس الطالب والمقرر والسنة الدراسية
+        existing_grade = Grade.query.filter_by(
+            student_id=student_id,
+            course_id=course_id,
+            academic_year=academic_year
+        ).first()
+        
+        if existing_grade:
+            return jsonify({'error': 'توجد درجة مسجلة بالفعل لهذا الطالب في هذا المقرر للعام الدراسي المحدد'}), 400
+        
+        # حساب المجموع والحالة والتقدير
+        total = coursework + final_exam + decision_marks
+        grade_status = 'pass' if total >= 50 else 'fail'
+        grade_evaluation = calculate_grade_evaluation(total)
+        
+        # إنشاء سجل درجة جديد
+        grade = Grade(
+            student_id=student_id,
+            course_id=course_id,
+            coursework=coursework,
+            final_exam=final_exam,
+            decision_marks=decision_marks,
+            total=total,
+            grade_status=grade_status,
+            grade_evaluation=grade_evaluation,
+            academic_year=academic_year
+        )
+        
+        db.session.add(grade)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'تم إضافة الدرجة بنجاح'
+        })
+    
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'حدث خطأ أثناء إضافة الدرجة: {str(e)}'}), 500
+
+# تحديث درجة
+@app.route('/admin/update_grade', methods=['POST'])
+@login_required
+def admin_update_grade():
+    if current_user.user_type != 'admin':
+        return jsonify({'error': 'غير مصرح لك بالوصول إلى هذه الوظيفة'}), 403
+    
+    try:
+        grade_id = request.form.get('grade_id', type=int)
+        student_id = request.form.get('student_id', type=int)
+        course_id = request.form.get('course_id', type=int)
+        coursework = request.form.get('coursework', type=float)
+        final_exam = request.form.get('final_exam', type=float)
+        decision_marks = request.form.get('decision_marks', type=float, default=0)
+        academic_year = request.form.get('academic_year')
+        
+        # التحقق من المدخلات
+        if not all([grade_id, student_id, course_id, coursework is not None, final_exam is not None, academic_year]):
+            return jsonify({'error': 'جميع الحقول المطلوبة يجب تعبئتها'}), 400
+        
+        # التحقق من وجود الدرجة
+        grade = Grade.query.get(grade_id)
+        if not grade:
+            return jsonify({'error': 'الدرجة غير موجودة'}), 404
+        
+        # التحقق من عدم وجود درجة أخرى لنفس الطالب والمقرر والسنة الدراسية
+        existing_grade = Grade.query.filter(
+            Grade.id != grade_id,
+            Grade.student_id == student_id,
+            Grade.course_id == course_id,
+            Grade.academic_year == academic_year
+        ).first()
+        
+        if existing_grade:
+            return jsonify({'error': 'توجد درجة مسجلة بالفعل لهذا الطالب في هذا المقرر للعام الدراسي المحدد'}), 400
+        
+        # حساب المجموع والحالة والتقدير
+        total = coursework + final_exam + decision_marks
+        grade_status = 'pass' if total >= 50 else 'fail'
+        grade_evaluation = calculate_grade_evaluation(total)
+        
+        # تحديث بيانات الدرجة
+        grade.course_id = course_id
+        grade.coursework = coursework
+        grade.final_exam = final_exam
+        grade.decision_marks = decision_marks
+        grade.total = total
+        grade.grade_status = grade_status
+        grade.grade_evaluation = grade_evaluation
+        grade.academic_year = academic_year
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'تم تحديث الدرجة بنجاح'
+        })
+    
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'حدث خطأ أثناء تحديث الدرجة: {str(e)}'}), 500
+
+# حذف درجة
+@app.route('/admin/delete_grade', methods=['POST'])
+@login_required
+def admin_delete_grade():
+    if current_user.user_type != 'admin':
+        return jsonify({'error': 'غير مصرح لك بالوصول إلى هذه الوظيفة'}), 403
+    
+    try:
+        data = request.get_json()
+        grade_id = data.get('grade_id')
+        
+        if not grade_id:
+            return jsonify({'error': 'معرف الدرجة مطلوب'}), 400
+        
+        # التحقق من وجود الدرجة
+        grade = Grade.query.get(grade_id)
+        if not grade:
+            return jsonify({'error': 'الدرجة غير موجودة'}), 404
+        
+        # حذف الدرجة
+        db.session.delete(grade)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'تم حذف الدرجة بنجاح'
+        })
+    
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'حدث خطأ أثناء حذف الدرجة: {str(e)}'}), 500
 
 if __name__ == '__main__':
     init_db()

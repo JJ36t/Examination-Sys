@@ -1,0 +1,352 @@
+{% extends "admin_layout.html" %}
+
+{% block admin_content %}
+<div class="card shadow mb-4">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">درجات الطالب: {{ user.name }}</h5>
+        <a href="{{ url_for('admin_students') }}" class="btn btn-light btn-sm">
+            <i class="fas fa-arrow-left"></i> العودة إلى قائمة الطلاب
+        </a>
+    </div>
+    <div class="card-body">
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0">معلومات الطالب</h6>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-bordered">
+                            <tr>
+                                <th>الاسم</th>
+                                <td>{{ user.name }}</td>
+                            </tr>
+                            <tr>
+                                <th>رقم الطالب</th>
+                                <td>{{ student.student_id }}</td>
+                            </tr>
+                            <tr>
+                                <th>اسم المستخدم</th>
+                                <td>{{ user.username }}</td>
+                            </tr>
+                            <tr>
+                                <th>المرحلة</th>
+                                <td>المرحلة {{ student.stage }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">إضافة درجة جديدة</h6>
+                    </div>
+                    <div class="card-body">
+                        <form id="addGradeForm">
+                            <input type="hidden" id="studentIdInput" name="student_id" value="{{ student.id }}">
+                            <div class="mb-3">
+                                <label for="courseSelect" class="form-label">المقرر</label>
+                                <select class="form-select" id="courseSelect" name="course_id" required>
+                                    <option value="">اختر المقرر</option>
+                                    {% for stage in range(1, 5) %}
+                                        {% if courses_by_stage[stage] %}
+                                            <optgroup label="المرحلة {{ stage }}">
+                                                {% for course in courses_by_stage[stage] %}
+                                                    <option value="{{ course.id }}">{{ course.name }} (م{{ course.stage }}، ف{{ course.semester }})</option>
+                                                {% endfor %}
+                                            </optgroup>
+                                        {% endif %}
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label for="courseworkInput" class="form-label">أعمال الفصل</label>
+                                    <input type="number" class="form-control" id="courseworkInput" name="coursework" min="0" max="30" required>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label for="finalExamInput" class="form-label">الامتحان النهائي</label>
+                                    <input type="number" class="form-control" id="finalExamInput" name="final_exam" min="0" max="70" required>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label for="decisionMarksInput" class="form-label">درجات القرار</label>
+                                    <input type="number" class="form-control" id="decisionMarksInput" name="decision_marks" min="0" max="10" value="0">
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="academicYearInput" class="form-label">العام الدراسي</label>
+                                <input type="text" class="form-control" id="academicYearInput" name="academic_year" required placeholder="مثال: 2023-2024">
+                            </div>
+                            <button type="button" id="saveGradeBtn" class="btn btn-primary">حفظ الدرجة</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header bg-light">
+                <h6 class="mb-0">سجل الدرجات</h6>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>المرحلة</th>
+                                <th>المقرر</th>
+                                <th>أعمال الفصل (30)</th>
+                                <th>الامتحان النهائي (70)</th>
+                                <th>درجات القرار</th>
+                                <th>المجموع</th>
+                                <th>حالة النجاح</th>
+                                <th>التقدير</th>
+                                <th>العام الدراسي</th>
+                                <th>الإجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody id="gradesTableBody">
+                            {% if grades %}
+                                {% set current_stage = 0 %}
+                                {% for grade in grades %}
+                                    {% set course = courses|selectattr('id', 'eq', grade.course_id)|first %}
+                                    {% if current_stage != course.stage %}
+                                        {% set current_stage = course.stage %}
+                                        <tr class="table-secondary">
+                                            <th colspan="10" class="text-center">المرحلة {{ course.stage }}</th>
+                                        </tr>
+                                    {% endif %}
+                                    <tr>
+                                        <td>{{ course.stage }}</td>
+                                        <td>{{ course.name }} (ف{{ course.semester }})</td>
+                                        <td>{{ grade.coursework }}</td>
+                                        <td>{{ grade.final_exam }}</td>
+                                        <td>{{ grade.decision_marks }}</td>
+                                        <td><strong>{{ grade.total }}</strong></td>
+                                        <td>
+                                            {% if grade.grade_status == 'pass' %}
+                                                <span class="badge bg-success">ناجح</span>
+                                            {% else %}
+                                                <span class="badge bg-danger">راسب</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ grade.grade_evaluation }}</td>
+                                        <td>{{ grade.academic_year }}</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-primary edit-grade" 
+                                                    data-id="{{ grade.id }}"
+                                                    data-course-id="{{ grade.course_id }}"
+                                                    data-coursework="{{ grade.coursework }}"
+                                                    data-final-exam="{{ grade.final_exam }}"
+                                                    data-decision-marks="{{ grade.decision_marks }}"
+                                                    data-academic-year="{{ grade.academic_year }}">
+                                                <i class="fas fa-edit"></i> تعديل
+                                            </button>
+                                            <button class="btn btn-sm btn-danger delete-grade" data-id="{{ grade.id }}">
+                                                <i class="fas fa-trash"></i> حذف
+                                            </button>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="10" class="text-center">لا توجد درجات مسجلة لهذا الطالب</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- نموذج تعديل الدرجة -->
+<div class="modal fade" id="editGradeModal" tabindex="-1" aria-labelledby="editGradeModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editGradeModalLabel">تعديل الدرجة</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editGradeForm">
+                    <input type="hidden" id="editGradeId" name="grade_id">
+                    <input type="hidden" id="editStudentId" name="student_id" value="{{ student.id }}">
+                    <div class="mb-3">
+                        <label for="editCourseSelect" class="form-label">المقرر</label>
+                        <select class="form-select" id="editCourseSelect" name="course_id" required>
+                            <option value="">اختر المقرر</option>
+                            {% for stage in range(1, 5) %}
+                                {% if courses_by_stage[stage] %}
+                                    <optgroup label="المرحلة {{ stage }}">
+                                        {% for course in courses_by_stage[stage] %}
+                                            <option value="{{ course.id }}">{{ course.name }} (م{{ course.stage }}، ف{{ course.semester }})</option>
+                                        {% endfor %}
+                                    </optgroup>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="editCourseworkInput" class="form-label">أعمال الفصل</label>
+                            <input type="number" class="form-control" id="editCourseworkInput" name="coursework" min="0" max="30" required>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="editFinalExamInput" class="form-label">الامتحان النهائي</label>
+                            <input type="number" class="form-control" id="editFinalExamInput" name="final_exam" min="0" max="70" required>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="editDecisionMarksInput" class="form-label">درجات القرار</label>
+                            <input type="number" class="form-control" id="editDecisionMarksInput" name="decision_marks" min="0" max="10" value="0">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editAcademicYearInput" class="form-label">العام الدراسي</label>
+                        <input type="text" class="form-control" id="editAcademicYearInput" name="academic_year" required placeholder="مثال: 2023-2024">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                <button type="button" class="btn btn-primary" id="updateGradeBtn">تحديث</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- نموذج تأكيد حذف الدرجة -->
+<div class="modal fade" id="deleteGradeModal" tabindex="-1" aria-labelledby="deleteGradeModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteGradeModalLabel">تأكيد الحذف</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+            </div>
+            <div class="modal-body">
+                <p>هل أنت متأكد من رغبتك في حذف هذه الدرجة؟</p>
+                <p class="text-danger">هذا الإجراء لا يمكن التراجع عنه.</p>
+                <input type="hidden" id="deleteGradeId">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteGradeBtn">حذف</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // إضافة الأحداث للأزرار
+        document.getElementById('saveGradeBtn').addEventListener('click', saveGrade);
+        document.getElementById('updateGradeBtn').addEventListener('click', updateGrade);
+        document.getElementById('confirmDeleteGradeBtn').addEventListener('click', deleteGrade);
+        
+        // إضافة الأحداث لأزرار التعديل والحذف
+        document.querySelectorAll('.edit-grade').forEach(button => {
+            button.addEventListener('click', function() {
+                const id = this.getAttribute('data-id');
+                const courseId = this.getAttribute('data-course-id');
+                const coursework = this.getAttribute('data-coursework');
+                const finalExam = this.getAttribute('data-final-exam');
+                const decisionMarks = this.getAttribute('data-decision-marks');
+                const academicYear = this.getAttribute('data-academic-year');
+                
+                document.getElementById('editGradeId').value = id;
+                document.getElementById('editCourseSelect').value = courseId;
+                document.getElementById('editCourseworkInput').value = coursework;
+                document.getElementById('editFinalExamInput').value = finalExam;
+                document.getElementById('editDecisionMarksInput').value = decisionMarks;
+                document.getElementById('editAcademicYearInput').value = academicYear;
+                
+                new bootstrap.Modal(document.getElementById('editGradeModal')).show();
+            });
+        });
+        
+        document.querySelectorAll('.delete-grade').forEach(button => {
+            button.addEventListener('click', function() {
+                const id = this.getAttribute('data-id');
+                document.getElementById('deleteGradeId').value = id;
+                new bootstrap.Modal(document.getElementById('deleteGradeModal')).show();
+            });
+        });
+    });
+    
+    // دالة لحفظ درجة جديدة
+    function saveGrade() {
+        const formData = new FormData(document.getElementById('addGradeForm'));
+        
+        fetch('/admin/add_grade', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('تم حفظ الدرجة بنجاح');
+                location.reload();
+            } else {
+                alert('حدث خطأ: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('حدث خطأ أثناء حفظ الدرجة');
+        });
+    }
+    
+    // دالة لتحديث الدرجة
+    function updateGrade() {
+        const formData = new FormData(document.getElementById('editGradeForm'));
+        
+        fetch('/admin/update_grade', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('تم تحديث الدرجة بنجاح');
+                location.reload();
+            } else {
+                alert('حدث خطأ: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('حدث خطأ أثناء تحديث الدرجة');
+        });
+    }
+    
+    // دالة لحذف الدرجة
+    function deleteGrade() {
+        const gradeId = document.getElementById('deleteGradeId').value;
+        
+        fetch('/admin/delete_grade', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                grade_id: gradeId
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('تم حذف الدرجة بنجاح');
+                location.reload();
+            } else {
+                alert('حدث خطأ: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('حدث خطأ أثناء حذف الدرجة');
+        });
+    }
+</script>
+{% endblock %}

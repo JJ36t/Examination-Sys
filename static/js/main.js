@@ -57,12 +57,62 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Toggle sidebar on mobile
-    const sidebarToggle = document.querySelector('.sidebar-toggle');
-    if (sidebarToggle) {
+    // إدارة السايد بار على جميع أحجام الشاشات
+    const sidebarToggle = document.querySelector('#sidebarToggle');
+    const sidebar = document.querySelector('#sidebar');
+    const mainContent = document.querySelector('#mainContent');
+    const overlay = document.querySelector('.overlay');
+    const toggleIcon = document.querySelector('#toggleIcon');
+    
+    if (sidebarToggle && sidebar && mainContent) {
+        // تهيئة السايد بار بناءً على حجم الشاشة
+        function initSidebarState() {
+            if (window.innerWidth <= 767) {
+                sidebar.classList.add('collapsed');
+                mainContent.classList.add('expanded');
+                if (toggleIcon) toggleIcon.classList.replace('fa-bars', 'fa-chevron-left');
+            } else {
+                sidebar.classList.remove('collapsed');
+                mainContent.classList.remove('expanded');
+                if (toggleIcon) toggleIcon.classList.replace('fa-chevron-left', 'fa-bars');
+            }
+        }
+
+        // تنفيذ التهيئة عند تحميل الصفحة
+        initSidebarState();
+        
+        // تبديل حالة السايد بار عند النقر على الزر
         sidebarToggle.addEventListener('click', function() {
-            const sidebar = document.querySelector('.sidebar');
-            sidebar.classList.toggle('active');
+            sidebar.classList.toggle('collapsed');
+            mainContent.classList.toggle('expanded');
+            
+            if (overlay) {
+                overlay.classList.toggle('show');
+            }
+            
+            // تغيير أيقونة الزر
+            if (toggleIcon) {
+                if (sidebar.classList.contains('collapsed')) {
+                    toggleIcon.classList.replace('fa-bars', 'fa-chevron-left');
+                } else {
+                    toggleIcon.classList.replace('fa-chevron-left', 'fa-bars');
+                }
+            }
+        });
+        
+        // إغلاق السايد بار عند النقر على الخلفية
+        if (overlay) {
+            overlay.addEventListener('click', function() {
+                sidebar.classList.add('collapsed');
+                mainContent.classList.add('expanded');
+                overlay.classList.remove('show');
+                if (toggleIcon) toggleIcon.classList.replace('fa-bars', 'fa-chevron-left');
+            });
+        }
+        
+        // تحديث حالة السايد بار عند تغيير حجم النافذة
+        window.addEventListener('resize', function() {
+            initSidebarState();
         });
     }
 
@@ -198,6 +248,63 @@ function calculateGradeEvaluation(total) {
     if (total < 90) return 'جيد جدا';
     return 'امتياز';
 }
+
+// تحسين عرض الجداول ديناميكيًا
+function optimizeTableDisplay() {
+    const tables = document.querySelectorAll('table.table');
+    
+    tables.forEach(table => {
+        // التأكد من أن الجدول موجود داخل عنصر table-responsive
+        let parent = table.parentElement;
+        if (!parent.classList.contains('table-responsive')) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'table-responsive';
+            table.parentNode.insertBefore(wrapper, table);
+            wrapper.appendChild(table);
+        }
+        
+        // إضافة فئة التجاوب لجميع الجداول
+        if (!table.classList.contains('table-responsive-sm')) {
+            table.classList.add('table-responsive-sm');
+        }
+    });
+}
+
+// تحسين المخططات البيانية
+function optimizeCharts() {
+    const chartContainers = document.querySelectorAll('.chart-container');
+    
+    chartContainers.forEach(container => {
+        // تحسين حجم عرض المخططات
+        container.style.minHeight = '300px';
+        container.style.height = 'calc(100% - 40px)';
+        
+        // إضافة تأثير حركي عند التحويم
+        container.addEventListener('mouseenter', function() {
+            this.style.transform = 'translateY(-5px)';
+            this.style.boxShadow = '0 8px 20px rgba(0, 0, 0, 0.12)';
+        });
+        
+        container.addEventListener('mouseleave', function() {
+            this.style.transform = 'translateY(0)';
+            this.style.boxShadow = '0 3px 15px rgba(0, 0, 0, 0.08)';
+        });
+    });
+}
+
+// استدعاء وظائف التحسين عند تحميل الصفحة
+document.addEventListener('DOMContentLoaded', function() {
+    optimizeTableDisplay();
+    optimizeCharts();
+    
+    // تنفيذ التحسينات مرة أخرى عند تغيير حجم النافذة
+    window.addEventListener('resize', function() {
+        setTimeout(function() {
+            optimizeTableDisplay();
+            optimizeCharts();
+        }, 300);
+    });
+});
 
 // Function to validate grade input
 function validateGradeInput(input, min, max) {

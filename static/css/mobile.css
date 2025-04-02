@@ -100,35 +100,139 @@
 
     /* تعديل حجم الأزرار والنماذج */
     .btn {
-        padding: 0.4rem 0.8rem;
-        font-size: 0.9rem;
+        padding: 0.5rem 1rem;
+        font-size: 0.95rem;
     }
 
-    .form-control {
-        font-size: 0.9rem;
-        padding: 0.375rem 0.75rem;
+    .form-control, .form-select {
+        font-size: 0.95rem;
+        padding: 0.5rem 0.75rem;
     }
 
-    /* تخطيط العناصر الرئيسية */
-    .stage-title {
-        padding: 10px;
-        font-size: 1.1rem;
-        margin-bottom: 10px;
+    /* عرض الإشعارات */
+    .alert {
+        padding: 0.75rem 1rem;
+        margin-bottom: 1rem;
     }
+}
 
-    .summary-box {
-        padding: 15px;
+/* تحسينات خاصة للوحة تحكم الإدارة */
+@media (max-width: 767px) {
+    /* تحسين عرض بطاقات الإحصائيات */
+    .admin-dashboard .stat-card {
+        min-height: 120px;
+    }
+    
+    .admin-dashboard .stat-card .number {
+        font-size: 2rem;
+    }
+    
+    .admin-dashboard .stat-card .card-title {
+        font-size: 1rem;
+    }
+    
+    /* تعديل عرض مخططات الرسوم البيانية */
+    .admin-dashboard .chart-container {
+        height: 250px !important;
+    }
+    
+    /* جعل صفوف الشبكة أكثر استجابة */
+    .admin-dashboard .row > [class^="col-"] {
+        padding-right: 8px;
+        padding-left: 8px;
+    }
+    
+    /* تخطيط أفضل للعناصر في لوحة التحكم */
+    .admin-dashboard .page-title {
+        font-size: 1.5rem;
+    }
+    
+    .admin-dashboard .admin-header {
+        padding: 12px;
         margin-bottom: 15px;
     }
-
-    /* تعديلات خاصة بالإحصائيات والرسوم البيانية */
-    .stats-box {
-        padding: 10px;
-        margin-bottom: 10px;
+    
+    /* تعديلات على العناصر الأخرى */
+    .admin-dashboard .display-4 {
+        font-size: 1.75rem;
     }
-
-    .chart-container {
-        height: 250px !important;
+    
+    /* تحسين أداء الفلاتر والبحث */
+    .admin-dashboard .filter-row {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .admin-dashboard .filter-row > div {
+        margin-bottom: 10px;
+        width: 100%;
+    }
+    
+    /* تعديل عرض الجداول في صفحات الإدارة */
+    .admin-dashboard .table th {
+        font-size: 0.85rem;
+        padding: 10px 8px;
+    }
+    
+    .admin-dashboard .table td {
+        font-size: 0.85rem;
+        padding: 8px;
+    }
+    
+    /* تحسين تصميم القوائم الجانبية */
+    .admin-dashboard .sidebar {
+        width: 250px;
+    }
+    
+    .admin-dashboard .sidebar.show {
+        right: 0;
+    }
+    
+    .admin-dashboard .main-content {
+        margin-right: 0;
+        padding: 10px;
+    }
+    
+    /* تحسين تصميم النماذج والمدخلات */
+    .admin-dashboard .form-group {
+        margin-bottom: 15px;
+    }
+    
+    .admin-dashboard .modal-dialog {
+        margin: 10px;
+    }
+    
+    .admin-dashboard .modal-content {
+        border-radius: 10px;
+    }
+    
+    .admin-dashboard .modal-body {
+        padding: 15px;
+    }
+    
+    /* تحسين أزرار العمليات */
+    .admin-dashboard .action-buttons .btn {
+        padding: 0.4rem 0.75rem;
+        margin-right: 5px;
+    }
+    
+    .admin-dashboard .btn-icon {
+        width: 36px;
+        height: 36px;
+    }
+    
+    /* ترتيب عناصر المخططات البيانية */
+    .admin-dashboard .pie-chart-container {
+        height: 200px;
+    }
+    
+    /* تحسين مظهر النتائج الإحصائية */
+    .admin-dashboard .stats-container {
+        flex-direction: column;
+    }
+    
+    .admin-dashboard .stats-container > div {
+        width: 100%;
         margin-bottom: 15px;
     }
 }
