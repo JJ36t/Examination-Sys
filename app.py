@@ -36,10 +36,13 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///examination.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQL_SCHEMA_FILE'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'database_schema.sql')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)  # تحديد مدة انتهاء الجلسة (30 دقيقة)
 
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
+login_manager.login_message = 'يرجى تسجيل الدخول للوصول إلى هذه الصفحة'
+login_manager.login_message_category = 'danger'
 
 # Models
 class User(db.Model, UserMixin):
@@ -138,55 +141,58 @@ class Grade(db.Model):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
+# دالة تنفذ قبل كل طلب للتحقق من حالة المستخدم
+@app.before_request
+def check_user_access():
+    # قائمة المسارات المسموح بها دون تسجيل دخول
+    allowed_paths = ['/', '/login', '/static', '/favicon.ico']
+    
+    # تحقق إذا كان المسار الحالي مسموحًا به دون تسجيل دخول
+    if request.path not in allowed_paths and not request.path.startswith('/static/'):
+        if not current_user.is_authenticated:
+            # إعادة توجيه المستخدم إلى صفحة تسجيل الدخول إذا لم يكن مسجلاً الدخول
+            flash('يرجى تسجيل الدخول للوصول إلى هذه الصفحة', 'danger')
+            return redirect(url_for('login'))
+        
+        # التحقق من تطابق نوع المستخدم مع المسار المطلوب
+        if current_user.user_type == 'student' and '/admin/' in request.path:
+            flash('غير مصرح لك بالوصول إلى هذه الصفحة', 'danger')
+            return redirect(url_for('student_dashboard'))
+        
+        if current_user.user_type == 'instructor' and '/admin/' in request.path:
+            flash('غير مصرح لك بالوصول إلى هذه الصفحة', 'danger')
+            return redirect(url_for('instructor_dashboard'))
+        
+        if current_user.user_type == 'admin' and request.path.startswith('/student_dashboard'):
+            flash('غير مصرح لك بالوصول إلى هذه الصفحة', 'danger')
+            return redirect(url_for('admin_dashboard'))
+            
+    # تعيين خاصية تجديد الجلسة
+    if current_user.is_authenticated:
+        session.permanent = True
+
 # Routes
 @app.route('/')
 def index():
-    # قم دائمًا بعرض صفحة تسجيل الدخول بغض النظر عن حالة المستخدم
-    # حتى لو كان مسجل الدخول بالفعل، سيظهر له صفحة تسجيل الدخول عند فتح الرابط الرئيسي
-    # إذا كان يريد الوصول إلى لوحة التحكم، فسيحتاج إلى النقر على الرابط المناسب
-    if current_user.is_authenticated:
-        # التحقق من الصفحة النشطة المخزنة في الجلسة
-        active_page = session.get('active_page')
-        
-        if active_page == 'instructor_dashboard':
-            return redirect(url_for('instructor_dashboard'))
-        elif active_page == 'student_dashboard':
-            return redirect(url_for('student_dashboard'))
-        elif active_page == 'admin_dashboard':
-            return redirect(url_for('admin_dashboard'))
-        else:
-            logout_user()  # تسجيل خروج المستخدم الحالي
-            
+    # التوجيه دائمًا إلى صفحة تسجيل الدخول بغض النظر عن حالة المستخدم
     return redirect(url_for('login'))
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    # تسجيل الخروج من أي حساب قد يكون مفتوحًا حاليًا
     if current_user.is_authenticated:
-        # التوجيه بناءً على نوع المستخدم وآخر صفحة نشطة
-        active_page = session.get('active_page')
-        
-        if active_page == 'instructor_dashboard':
-            return redirect(url_for('instructor_dashboard'))
-        elif active_page == 'student_dashboard':
-            return redirect(url_for('student_dashboard'))
-        elif active_page == 'admin_dashboard':
-            return redirect(url_for('admin_dashboard'))
-        else:
-            # التوجيه بناءً على نوع المستخدم إذا لم تكن هناك صفحة نشطة محفوظة
-            if current_user.user_type == 'admin':
-                session['active_page'] = 'admin_dashboard'
-                return redirect(url_for('admin_dashboard'))
-            elif current_user.user_type == 'instructor':
-                session['active_page'] = 'instructor_dashboard'
-                return redirect(url_for('instructor_dashboard'))
-            else:  # student
-                session['active_page'] = 'student_dashboard'
-                return redirect(url_for('student_dashboard'))
+        logout_user()
+        flash('تم تسجيل الخروج من الجلسة السابقة', 'info')
     
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
         user_type = request.form.get('user_type')
+        
+        # التحقق من وجود جميع البيانات المطلوبة
+        if not username or not password or not user_type:
+            flash('جميع الحقول مطلوبة', 'danger')
+            return render_template('login.html')
         
         user = User.query.filter_by(username=username).first()
         
@@ -199,6 +205,9 @@ def login():
             # نجاح تسجيل الدخول، إعادة تعيين عدد المحاولات الفاشلة
             user.failed_login_attempts = 0
             db.session.commit()
+            
+            # تعيين الجلسة على أنها دائمة ولكن مع وقت انتهاء صلاحية محدد
+            session.permanent = True
             
             login_user(user)
             # التوجيه بناءً على نوع المستخدم
@@ -926,8 +935,7 @@ def search_student_for_modification():
     # البحث في جدول المستخدمين (الاسم واسم المستخدم)
     users = User.query.filter(
         (User.user_type == 'student') & 
-        ((User.name.like(f'%{search_term}%')) | 
-         (User.username.like(f'%{search_term}%')))
+        ((User.name.like(f'%{search_term}%') | User.username.like(f'%{search_term}%')))
     ).all()
     
     user_ids = [user.id for user in users]
@@ -1537,7 +1545,7 @@ def import_grades(data):
     error_count = 0
     errors = []
     current_year = datetime.now().year
-    academic_year = f"{current_year-1}-{current_year}"
+    academic_year = f"{current_year-1}/{current_year}"
     
     for i, row in enumerate(data):
         try:
@@ -2513,6 +2521,7 @@ def admin_get_student_grades_for_course():
             'grade_id': grade.id if grade else None,
             'coursework': grade.coursework if grade else None,
             'final_exam': grade.final_exam if grade else None,
+            'decision_marks': grade.decision_marks if grade else None,
             'has_failed_courses': grade.total < 50 if grade else False
         }
         
@@ -3116,5 +3125,54 @@ if __name__ == '__main__':
         
         print(f"تم إنشاء شهادة SSL بنجاح في {cert_dir}")
     
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False, 
-            ssl_context=(cert_file, key_file))
+    # تعديل هنا: تعديل ملف app.py لتمكين العمل بشكل صحيح على منصة Render بدون SSL محلي
+    if __name__ == '__main__':
+        init_db()
+        
+        # تحديد ما إذا كان التطبيق يعمل على منصة Render
+        is_production = 'RENDER' in os.environ
+        
+        if not is_production:
+            # إنشاء ملفات الشهادة إذا لم تكن موجودة (للتطوير المحلي فقط)
+            cert_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'certificates')
+            cert_file = os.path.join(cert_dir, 'cert.pem')
+            key_file = os.path.join(cert_dir, 'key.pem')
+            
+            # إنشاء مجلد الشهادات إذا لم يكن موجوداً
+            if not os.path.exists(cert_dir):
+                os.makedirs(cert_dir)
+            
+            # إنشاء شهادة SSL ذاتية التوقيع إذا لم تكن موجودة
+            if not (os.path.exists(cert_file) and os.path.exists(key_file)):
+                k = crypto.PKey()
+                k.generate_key(crypto.TYPE_RSA, 2048)
+                
+                cert = crypto.X509()
+                cert.get_subject().C = "IQ"  # رمز الدولة
+                cert.get_subject().ST = "Baghdad"  # المحافظة
+                cert.get_subject().L = "Baghdad"  # المدينة
+                cert.get_subject().O = "Examination System"  # اسم المنظمة
+                cert.get_subject().OU = "Education"  # وحدة المنظمة
+                cert.get_subject().CN = "localhost"  # الاسم المشترك
+                cert.set_serial_number(1000)
+                cert.gmtime_adj_notBefore(0)
+                cert.gmtime_adj_notAfter(10*365*24*60*60)  # صالحة لمدة 10 سنوات
+                cert.set_issuer(cert.get_subject())
+                cert.set_pubkey(k)
+                cert.sign(k, 'sha256')
+                
+                with open(key_file, "wb") as f:
+                    f.write(crypto.dump_privatekey(crypto.FILETYPE_PEM, k))
+                
+                with open(cert_file, "wb") as f:
+                    f.write(crypto.dump_certificate(crypto.FILETYPE_PEM, cert))
+                
+                print(f"تم إنشاء شهادة SSL بنجاح في {cert_dir}")
+            
+            # تشغيل التطبيق محلياً مع SSL
+            app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=True, 
+                    ssl_context=(cert_file, key_file))
+        else:
+            # تشغيل التطبيق على Render بدون تكوين SSL (Render يتعامل مع SSL)
+            port = int(os.environ.get('PORT', 5000))
+            app.run(host='0.0.0.0', port=port, debug=False)
