@@ -3633,24 +3633,17 @@ def admin_delete_grade():
         db.session.rollback()
         return jsonify({'error': f'حدث خطأ أثناء حذف الدرجة: {str(e)}'}), 500
 
+# تعديل نقطة الدخول الرئيسية
 if __name__ == '__main__':
-    init_db()
-    
-    # تحديد ما إذا كان التطبيق يعمل على منصة Render
-    is_production = 'RENDER' in os.environ
-    
-    if not is_production:
-        # إنشاء ملفات الشهادة إذا لم تكن موجودة (للتطوير المحلي فقط)
-        cert_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ssl')
-        cert_file = os.path.join(cert_dir, 'cert.pem')
-        key_file = os.path.join(cert_dir, 'key.pem')
-        
-        # إنشاء مجلد الشهادات إذا لم يكن موجوداً
-        if not os.path.exists(cert_dir):
-            os.makedirs(cert_dir)
-        
-        # إنشاء شهادة SSL ذاتية التوقيع إذا لم تكن موجودة
-        if not (os.path.exists(cert_file) and os.path.exists(key_file)):
+    # تحقق مما إذا كنا على Render، إذا كان كذلك فلا تستخدم HTTPS
+    if 'RENDER' not in os.environ:
+        # توليد شهادة SSL للبيئة المحلية فقط
+        ssl_context = 'adhoc'
+        app.run(debug=True, ssl_context=ssl_context, host='0.0.0.0')
+    else:
+        # تشغيل التطبيق على Render بدون تكوين SSL (Render يتعامل مع SSL)
+        port = int(os.environ.get('PORT', 10000))
+        app.run(host='0.0.0.0', port=port, debug=False)
             k = crypto.PKey()
             k.generate_key(crypto.TYPE_RSA, 2048)
             
