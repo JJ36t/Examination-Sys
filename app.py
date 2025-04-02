@@ -3633,45 +3633,14 @@ def admin_delete_grade():
         db.session.rollback()
         return jsonify({'error': f'حدث خطأ أثناء حذف الدرجة: {str(e)}'}), 500
 
-# تعديل نقطة الدخول الرئيسية
+# نقطة دخول التطبيق
 if __name__ == '__main__':
-    # تحقق مما إذا كنا على Render، إذا كان كذلك فلا تستخدم HTTPS
-    if 'RENDER' not in os.environ:
-        # توليد شهادة SSL للبيئة المحلية فقط
-        ssl_context = 'adhoc'
-        app.run(debug=True, ssl_context=ssl_context, host='0.0.0.0')
-    else:
+    # تحقق مما إذا كنا على Render
+    if 'RENDER' in os.environ:
         # تشغيل التطبيق على Render بدون تكوين SSL (Render يتعامل مع SSL)
         port = int(os.environ.get('PORT', 10000))
         app.run(host='0.0.0.0', port=port, debug=False)
-            k = crypto.PKey()
-            k.generate_key(crypto.TYPE_RSA, 2048)
-            
-            cert = crypto.X509()
-            cert.get_subject().C = "SA"  # الدولة
-            cert.get_subject().ST = "Riyadh"  # المنطقة/المدينة
-            cert.get_subject().L = "Riyadh"  # الموقع
-            cert.get_subject().O = "Examination System"  # اسم المؤسسة
-            cert.get_subject().OU = "IT Department"  # اسم القسم
-            cert.get_subject().CN = "localhost"  # الاسم المشترك
-            cert.set_serial_number(1000)
-            cert.gmtime_adj_notBefore(0)
-            cert.gmtime_adj_notAfter(10*365*24*60*60)  # صالحة لمدة 10 سنوات
-            cert.set_issuer(cert.get_subject())
-            cert.set_pubkey(k)
-            cert.sign(k, 'sha256')
-            
-            with open(key_file, "wb") as f:
-                f.write(crypto.dump_privatekey(crypto.FILETYPE_PEM, k))
-            
-            with open(cert_file, "wb") as f:
-                f.write(crypto.dump_certificate(crypto.FILETYPE_PEM, cert))
-            
-            print(f"تم إنشاء شهادة SSL بنجاح في {cert_dir}")
-        
-        # تشغيل التطبيق محلياً مع SSL
-        app.run(debug=True, host='0.0.0.0', ssl_context=(cert_file, key_file))
     else:
-        # تشغيل التطبيق على Render بدون تكوين SSL (Render يتعامل مع SSL)
-        port = int(os.environ.get('PORT', 5000))
-        app.run(host='0.0.0.0', port=port, debug=False)
+        # توليد شهادة SSL للبيئة المحلية فقط
+        ssl_context = 'adhoc'
+        app.run(debug=True, ssl_context=ssl_context, host='0.0.0.0')

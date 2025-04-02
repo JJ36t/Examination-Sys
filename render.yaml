@@ -2,13 +2,13 @@ services:
   - type: web
     name: examination-system
     env: python
-    buildCommand: chmod +x build.sh && ./build.sh
+    buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app
     healthCheckPath: /health
     envVars:
       - key: RENDER
         value: "true"
       - key: PYTHON_VERSION
-        value: 3.10.0
+        value: 3.11.0
       - key: WEB_CONCURRENCY
         value: 1
