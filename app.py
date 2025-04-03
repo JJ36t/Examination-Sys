@@ -3633,6 +3633,47 @@ def admin_delete_grade():
         db.session.rollback()
         return jsonify({'error': f'حدث خطأ أثناء حذف الدرجة: {str(e)}'}), 500
 
+# إضافة مستخدم جديد
+@app.route('/admin/add_user', methods=['POST'])
+@login_required
+def admin_add_user():
+    if current_user.user_type != 'admin':
+        return jsonify({'error': 'غير مصرح لك بالوصول إلى هذه الوظيفة'}), 403
+    
+    try:
+        # الحصول على البيانات من النموذج
+        username = request.form.get('username')
+        password = request.form.get('password')
+        name = request.form.get('name')
+        user_type = request.form.get('user_type')  # 'admin', 'instructor', 'student'
+        
+        # التحقق من البيانات المطلوبة
+        if not all([username, password, name, user_type]):
+            return jsonify({'error': 'جميع الحقول مطلوبة'}), 400
+            
+        # التحقق من عدم وجود مستخدم بنفس اسم المستخدم
+        existing_user = User.query.filter_by(username=username).first()
+        if existing_user:
+            return jsonify({'error': 'اسم المستخدم موجود بالفعل'}), 400
+            
+        # إنشاء مستخدم جديد
+        new_user = User(username=username, name=name, user_type=user_type)
+        new_user.set_password(password)
+        
+        # إضافة المستخدم لقاعدة البيانات
+        db.session.add(new_user)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'تم إضافة المستخدم بنجاح',
+            'user_id': new_user.id
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'حدث خطأ أثناء إضافة المستخدم: {str(e)}'}), 500
+
 # نقطة دخول التطبيق
 if __name__ == '__main__':
     # تحقق مما إذا كنا على Render

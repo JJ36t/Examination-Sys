@@ -1,52 +1,61 @@
 {% extends "admin_layout.html" %}
 
 {% block admin_content %}
-<div class="card shadow mb-4">
-    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">درجات الطالب: {{ user.name }}</h5>
-        <a href="{{ url_for('admin_students') }}" class="btn btn-light btn-sm">
-            <i class="fas fa-arrow-left"></i> العودة إلى قائمة الطلاب
-        </a>
-    </div>
-    <div class="card-body">
-        <div class="row mb-4">
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header bg-light">
-                        <h6 class="mb-0">معلومات الطالب</h6>
-                    </div>
-                    <div class="card-body">
-                        <table class="table table-bordered">
-                            <tr>
-                                <th>الاسم</th>
-                                <td>{{ user.name }}</td>
-                            </tr>
-                            <tr>
-                                <th>رقم الطالب</th>
-                                <td>{{ student.student_id }}</td>
-                            </tr>
-                            <tr>
-                                <th>اسم المستخدم</th>
-                                <td>{{ user.username }}</td>
-                            </tr>
-                            <tr>
-                                <th>المرحلة</th>
-                                <td>المرحلة {{ student.stage }}</td>
-                            </tr>
-                        </table>
+<div class="admin-container">
+    <div class="admin-card shadow mb-4">
+        <div class="admin-card-header bg-primary text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h5 class="mb-0">
+                <i class="fas fa-graduation-cap me-2"></i>
+                درجات الطالب: {{ user.name }}
+            </h5>
+            <a href="{{ url_for('admin_students') }}" class="btn btn-light btn-sm">
+                <i class="fas fa-arrow-left"></i> العودة إلى قائمة الطلاب
+            </a>
+        </div>
+        <div class="admin-card-body p-0 p-md-3">
+            <!-- معلومات الطالب ومجموعة الإضافة -->
+            <div class="row g-3 mb-4 px-2 pt-3">
+                <div class="col-lg-5 col-md-12">
+                    <div class="admin-card h-100">
+                        <div class="admin-card-header bg-light d-flex align-items-center">
+                            <i class="fas fa-user-graduate me-2 text-primary"></i>
+                            <h6 class="mb-0">معلومات الطالب</h6>
+                        </div>
+                        <div class="admin-card-body p-0">
+                            <table class="admin-table mb-0">
+                                <tr>
+                                    <th>الاسم</th>
+                                    <td>{{ user.name }}</td>
+                                </tr>
+                                <tr>
+                                    <th>رقم الطالب</th>
+                                    <td>{{ student.student_id }}</td>
+                                </tr>
+                                <tr>
+                                    <th>اسم المستخدم</th>
+                                    <td>{{ user.username }}</td>
+                                </tr>
+                                <tr>
+                                    <th>المرحلة</th>
+                                    <td>
+                                        <span class="badge bg-info text-white">المرحلة {{ student.stage }}</span>
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
                     </div>
                 </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <div class="col-lg-7 col-md-12">
+                <div class="admin-card h-100">
+                    <div class="admin-card-header bg-light d-flex align-items-center">
+                        <i class="fas fa-plus-circle me-2 text-success"></i>
                         <h6 class="mb-0">إضافة درجة جديدة</h6>
                     </div>
-                    <div class="card-body">
+                    <div class="admin-card-body">
                         <form id="addGradeForm">
                             <input type="hidden" id="studentIdInput" name="student_id" value="{{ student.id }}">
                             <div class="mb-3">
-                                <label for="courseSelect" class="form-label">المقرر</label>
+                                <label for="courseSelect" class="form-label fw-bold">المقرر</label>
                                 <select class="form-select" id="courseSelect" name="course_id" required>
                                     <option value="">اختر المقرر</option>
                                     {% for stage in range(1, 5) %}
@@ -60,50 +69,63 @@
                                     {% endfor %}
                                 </select>
                             </div>
-                            <div class="row">
+                            <div class="row g-2">
                                 <div class="col-md-4 mb-3">
-                                    <label for="courseworkInput" class="form-label">أعمال الفصل</label>
-                                    <input type="number" class="form-control" id="courseworkInput" name="coursework" min="0" max="30" required>
+                                    <label for="courseworkInput" class="form-label fw-bold">أعمال الفصل</label>
+                                    <div class="input-group">
+                                        <input type="number" class="form-control" id="courseworkInput" name="coursework" min="0" max="30" required>
+                                        <span class="input-group-text bg-light">/30</span>
+                                    </div>
                                 </div>
                                 <div class="col-md-4 mb-3">
-                                    <label for="finalExamInput" class="form-label">الامتحان النهائي</label>
-                                    <input type="number" class="form-control" id="finalExamInput" name="final_exam" min="0" max="70" required>
+                                    <label for="finalExamInput" class="form-label fw-bold">الامتحان النهائي</label>
+                                    <div class="input-group">
+                                        <input type="number" class="form-control" id="finalExamInput" name="final_exam" min="0" max="70" required>
+                                        <span class="input-group-text bg-light">/70</span>
+                                    </div>
                                 </div>
                                 <div class="col-md-4 mb-3">
-                                    <label for="decisionMarksInput" class="form-label">درجات القرار</label>
-                                    <input type="number" class="form-control" id="decisionMarksInput" name="decision_marks" min="0" max="10" value="0">
+                                    <label for="decisionMarksInput" class="form-label fw-bold">درجات القرار</label>
+                                    <div class="input-group">
+                                        <input type="number" class="form-control" id="decisionMarksInput" name="decision_marks" min="0" max="10" value="0">
+                                        <span class="input-group-text bg-light">/10</span>
+                                    </div>
                                 </div>
                             </div>
                             <div class="mb-3">
-                                <label for="academicYearInput" class="form-label">العام الدراسي</label>
+                                <label for="academicYearInput" class="form-label fw-bold">العام الدراسي</label>
                                 <input type="text" class="form-control" id="academicYearInput" name="academic_year" required placeholder="مثال: 2023-2024">
                             </div>
-                            <button type="button" id="saveGradeBtn" class="btn btn-primary">حفظ الدرجة</button>
+                            <button type="button" id="saveGradeBtn" class="btn btn-success">
+                                <i class="fas fa-save me-1"></i> حفظ الدرجة
+                            </button>
                         </form>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="card">
-            <div class="card-header bg-light">
+        <!-- سجل الدرجات -->
+        <div class="admin-card mt-4">
+            <div class="admin-card-header bg-light d-flex align-items-center">
+                <i class="fas fa-list-alt me-2 text-primary"></i>
                 <h6 class="mb-0">سجل الدرجات</h6>
             </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-bordered table-hover">
-                        <thead class="table-light">
+            <div class="admin-card-body p-0">
+                <div class="table-container">
+                    <table class="admin-table table-hover">
+                        <thead>
                             <tr>
-                                <th>المرحلة</th>
+                                <th width="60px">المرحلة</th>
                                 <th>المقرر</th>
-                                <th>أعمال الفصل (30)</th>
-                                <th>الامتحان النهائي (70)</th>
-                                <th>درجات القرار</th>
-                                <th>المجموع</th>
-                                <th>حالة النجاح</th>
-                                <th>التقدير</th>
-                                <th>العام الدراسي</th>
-                                <th>الإجراءات</th>
+                                <th width="80px">أعمال الفصل</th>
+                                <th width="80px">الامتحان النهائي</th>
+                                <th width="80px">درجات القرار</th>
+                                <th width="70px">المجموع</th>
+                                <th width="80px">حالة النجاح</th>
+                                <th width="80px">التقدير</th>
+                                <th width="100px">العام الدراسي</th>
+                                <th width="150px">الإجراءات</th>
                             </tr>
                         </thead>
                         <tbody id="gradesTableBody">
@@ -113,39 +135,44 @@
                                     {% set course = courses|selectattr('id', 'eq', grade.course_id)|first %}
                                     {% if current_stage != course.stage %}
                                         {% set current_stage = course.stage %}
-                                        <tr class="table-secondary">
-                                            <th colspan="10" class="text-center">المرحلة {{ course.stage }}</th>
+                                        <tr class="stage-header">
+                                            <th colspan="10" class="text-center bg-light py-2">
+                                                <i class="fas fa-graduation-cap me-1"></i>
+                                                المرحلة {{ course.stage }}
+                                            </th>
                                         </tr>
                                     {% endif %}
                                     <tr>
-                                        <td>{{ course.stage }}</td>
-                                        <td>{{ course.name }} (ف{{ course.semester }})</td>
-                                        <td>{{ grade.coursework }}</td>
-                                        <td>{{ grade.final_exam }}</td>
-                                        <td>{{ grade.decision_marks }}</td>
-                                        <td><strong>{{ grade.total }}</strong></td>
-                                        <td>
+                                        <td class="text-center">{{ course.stage }}</td>
+                                        <td>{{ course.name }} <small class="text-muted">(ف{{ course.semester }})</small></td>
+                                        <td class="text-center">{{ grade.coursework }}</td>
+                                        <td class="text-center">{{ grade.final_exam }}</td>
+                                        <td class="text-center">{{ grade.decision_marks }}</td>
+                                        <td class="text-center fw-bold">{{ grade.total }}</td>
+                                        <td class="text-center">
                                             {% if grade.grade_status == 'pass' %}
-                                                <span class="badge bg-success">ناجح</span>
+                                                <span class="badge bg-success rounded-pill px-3 py-2">ناجح</span>
                                             {% else %}
-                                                <span class="badge bg-danger">راسب</span>
+                                                <span class="badge bg-danger rounded-pill px-3 py-2">راسب</span>
                                             {% endif %}
                                         </td>
-                                        <td>{{ grade.grade_evaluation }}</td>
-                                        <td>{{ grade.academic_year }}</td>
-                                        <td>
-                                            <button class="btn btn-sm btn-primary edit-grade" 
-                                                    data-id="{{ grade.id }}"
-                                                    data-course-id="{{ grade.course_id }}"
-                                                    data-coursework="{{ grade.coursework }}"
-                                                    data-final-exam="{{ grade.final_exam }}"
-                                                    data-decision-marks="{{ grade.decision_marks }}"
-                                                    data-academic-year="{{ grade.academic_year }}">
-                                                <i class="fas fa-edit"></i> تعديل
-                                            </button>
-                                            <button class="btn btn-sm btn-danger delete-grade" data-id="{{ grade.id }}">
-                                                <i class="fas fa-trash"></i> حذف
-                                            </button>
+                                        <td class="text-center">{{ grade.grade_evaluation }}</td>
+                                        <td class="text-center">{{ grade.academic_year }}</td>
+                                        <td class="text-center">
+                                            <div class="btn-group btn-group-sm">
+                                                <button class="btn btn-sm btn-outline-primary edit-grade" 
+                                                        data-id="{{ grade.id }}"
+                                                        data-course-id="{{ grade.course_id }}"
+                                                        data-coursework="{{ grade.coursework }}"
+                                                        data-final-exam="{{ grade.final_exam }}"
+                                                        data-decision-marks="{{ grade.decision_marks }}"
+                                                        data-academic-year="{{ grade.academic_year }}">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                <button class="btn btn-sm btn-outline-danger delete-grade" data-id="{{ grade.id }}">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 {% endfor %}

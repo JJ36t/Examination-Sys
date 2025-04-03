@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <title>{% block title %}لوحة تحكم الإدارة{% endblock %} | نظام اللجان الامتحانية</title>
     <!-- Bootstrap RTL -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
@@ -20,6 +21,11 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
     <!-- Mobile Specific CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile.css') }}" media="(max-width: 767px)">
+    <!-- Admin Responsive CSS - ملف جديد لتحسين تنسيق صفحات الإدارة -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin_responsive.css') }}">
+    <!-- تحسين أداء الصفحة -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <style>
         body {
             font-family: 'Tajawal', sans-serif;
@@ -136,11 +142,21 @@
             margin-right: 250px; /* نفس عرض الشريط الجانبي */
             transition: all 0.3s ease;
             min-height: 100vh; /* مهم: للتأكد من امتداد المحتوى للأسفل */
+            overflow-x: hidden; /* منع التمرير الأفقي للمحتوى */
         }
         
         /* تعديل المحتوى عندما يكون السايد بار مغلقًا */
         .main-content.expanded {
             margin-right: 0;
+        }
+        
+        /* تحسين طريقة عرض الجداول */
+        .table-container {
+            overflow-x: auto;
+            max-width: 100%;
+            margin-bottom: 1.5rem;
+            border-radius: 0.25rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         }
         
         .admin-dashboard {
