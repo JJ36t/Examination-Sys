@@ -212,7 +212,24 @@ def index():
 # مسار فحص صحة التطبيق لمنصة Render
 @app.route('/health')
 def health_check():
-    return jsonify({'status': 'healthy'}), 200
+    # التحقق من الاتصال بقاعدة البيانات
+    try:
+        # تنفيذ استعلام بسيط للتحقق من الاتصال
+        db.session.execute('SELECT 1').scalar()
+        db_status = "connected"
+    except Exception as e:
+        db_status = f"error: {str(e)}"
+        # لا نريد إيقاف التطبيق إذا كانت قاعدة البيانات معطلة مؤقتًا
+    
+    # تجميع المعلومات المفيدة عن حالة التطبيق
+    health_info = {
+        'status': 'healthy',
+        'timestamp': datetime.now().isoformat(),
+        'environment': 'production' if 'RENDER' in os.environ else 'development',
+        'database': db_status
+    }
+    
+    return jsonify(health_info), 200
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
