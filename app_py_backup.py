@@ -21,8 +21,6 @@ from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from OpenSSL import crypto
-# استيراد دالة توليد رقم الطالب
-from student_id_generator import generate_student_id
 
 # دالة لحساب تقدير الدرجة بناءً على المجموع
 def calculate_grade_evaluation(total):
@@ -894,8 +892,25 @@ def add_student():
     else:  # قسم نظم المعلومات
         year_prefix = f"IS{current_year}"
     
-    # استخدام دالة توليد رقم الطالب المحسنة
-    student_id = generate_student_id(db, Student, department)
+    # البحث عن آخر طالب بنفس السنة والقسم
+    last_student = Student.query.filter(
+        Student.student_id.like(f"{year_prefix}%"),
+        Student.department == department
+    ).order_by(Student.student_id.desc()).first()
+    
+    if last_student and last_student.student_id:
+        # استخراج الرقم من معرف الطالب إذا كان يحتوي على أرقام فقط
+        try:
+            # استخراج الرقم التسلسلي (آخر 3 أرقام)
+            sequence_number = int(last_student.student_id[-3:])
+            new_sequence_number = sequence_number + 1
+            student_id = f"{year_prefix}{new_sequence_number:03d}"
+        except (ValueError, IndexError):
+            # إذا كان هناك خطأ في تنسيق الرقم، ابدأ من 001
+            student_id = f"{year_prefix}001"
+    else:
+        # إذا لم يكن هناك طلاب بالفعل، ابدأ من 001
+        student_id = f"{year_prefix}001"
     
     # التحقق من عدم وجود رقم طالب مكرر
     if Student.query.filter_by(student_id=student_id).first():
@@ -1459,8 +1474,24 @@ def import_students(data):
     
     # دالة مساعدة لتوليد رقم طالب جديد
     def generate_student_id():
-        # استخدام دالة توليد رقم الطالب المحسنة
-        return generate_student_id(db, Student)
+        # البحث عن آخر طالب في قاعدة البيانات
+        latest_student = Student.query.order_by(Student.id.desc()).first()
+        
+        if latest_student and latest_student.student_id:
+            # استخراج الرقم من معرف الطالب إذا كان يحتوي على أرقام فقط
+            try:
+                # استخراج الرقم التسلسلي (آخر 3 أرقام)
+                sequence_number = int(latest_student.student_id[-3:])
+                new_sequence_number = sequence_number + 1
+                student_id = f"{latest_student.student_id[:-3]}{new_sequence_number:03d}"
+            except (ValueError, IndexError):
+                # إذا كان هناك خطأ في تنسيق الرقم، ابدأ من 001
+                student_id = f"{latest_student.student_id[:-3]}001"
+        else:
+            # إذا لم يكن هناك طلاب بالفعل، ابدأ من 001
+            student_id = "CS2023001"
+        
+        return student_id
     
     for i, row in enumerate(data):
         try:

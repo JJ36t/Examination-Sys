@@ -75,6 +75,13 @@
                             </button>
                         </div>
                     </div>
+                    <div class="search-box fade-in me-2">
+                        <select class="form-select" id="departmentFilter">
+                            <option value="">جميع الأقسام</option>
+                            <option value="علوم الحاسوب">علوم الحاسوب</option>
+                            <option value="نظم المعلومات">نظم المعلومات</option>
+                        </select>
+                    </div>
                     <!-- إضافة أزرار التصدير -->
                     <button class="btn btn-success ms-2" id="exportExcelBtn">
                         <i class="fas fa-file-excel me-1"></i>
@@ -246,23 +253,6 @@
             loadStudents();
         });
         
-        // Handle search
-        $('#searchBtn').click(function() {
-            searchStudents();
-        });
-        
-        // Handle search on Enter key
-        $('#searchInput').keypress(function(e) {
-            if (e.which === 13) {
-                searchStudents();
-            }
-        });
-        
-        // Function to update the title
-        function updateTitle() {
-            $('#stageTitle').text(`المرحلة ${currentStage} - الكورس ${currentSemester}`);
-        }
-        
         // Function to load students
         function loadStudents() {
             // إلغاء أي طلب بحث حالي
@@ -299,11 +289,18 @@
                     data: {
                         stage: currentStage,
                         semester: currentSemester
+                        // سنقوم بالفلترة على جانب العميل بناءً على القسم
                     },
                     success: function(data) {
                         // إعادة تعيين عداد المحاولات عند النجاح
                         window.retryCount = 0;
-                        displayStudents(data);
+                        
+                        // حفظ بيانات الطلاب في متغير عالمي
+                        window.allStudents = data;
+                        
+                        // تطبيق فلتر القسم المختار
+                        filterStudentsByDepartment();
+                        
                         window.currentLoadRequest = null;
                         
                         // عرض إشعار نجاح
@@ -364,82 +361,72 @@
             performRequest();
         }
         
-        // Function to search for a student
-        function searchStudents() {
-            const searchTerm = $('#searchInput').val().trim();
+        // إضافة دالة فلترة الطلاب حسب القسم
+        function filterStudentsByDepartment() {
+            const departmentValue = $('#departmentFilter').val();
+            const searchValue = $('#searchInput').val().trim().toLowerCase();
             
-            if (searchTerm === '') {
-                // If search term is empty, load all students
-                loadStudents();
+            // إذا لم يكن هناك بيانات طلاب محملة
+            if (!window.allStudents || !Array.isArray(window.allStudents)) {
+                $('#studentsContainer').html(`
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        لا توجد بيانات للطلاب.
+                    </div>
+                `);
                 return;
             }
             
-            // عرض رسالة التحميل
-            $('#studentsContainer').html(`
-                <div class="text-center py-5">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">جاري البحث...</span>
-                    </div>
-                    <p class="mt-2">جاري البحث عن "${searchTerm}"...</p>
-                </div>
-            `);
+            console.log("القسم المختار:", departmentValue);
+            console.log("جميع الطلاب:", window.allStudents);
             
-            // إضافة متغير لتتبع الطلب الحالي
-            if (window.currentSearchRequest) {
-                window.currentSearchRequest.abort();
-            }
-            
-            window.currentSearchRequest = $.ajax({
-                url: '{{ url_for("search_student") }}',
-                method: 'POST',
-                data: {
-                    search_term: searchTerm,
-                    stage: currentStage,
-                    semester: currentSemester
-                },
-                success: function(data) {
-                    // التحقق من أن نتائج البحث تتوافق مع المرحلة والكورس الحاليين
-                    const requestData = this.data;
-                    const requestStage = parseInt(requestData.split('&')[1].split('=')[1]);
-                    const requestSemester = parseInt(requestData.split('&')[2].split('=')[1]);
-                    
-                    if (requestStage === currentStage && requestSemester === currentSemester) {
-                        if (data.length === 0) {
-                            $('#studentsContainer').html(`
-                                <div class="alert alert-warning">
-                                    <i class="fas fa-exclamation-circle me-2"></i>
-                                    لم يتم العثور على نتائج للبحث عن "${searchTerm}".
-                                </div>
-                            `);
-                        } else {
-                            displayStudents(data);
-                        }
-                    }
-                    window.currentSearchRequest = null;
-                },
-                error: function(xhr, status) {
-                    // تجاهل الأخطاء إذا تم إلغاء الطلب
-                    if (status !== 'abort') {
-                        $('#studentsContainer').html(`
-                            <div class="alert alert-danger">
-                                <i class="fas fa-exclamation-triangle me-2"></i>
-                                حدث خطأ أثناء البحث. يرجى المحاولة مرة أخرى.
-                            </div>
-                        `);
-                        console.error('Error searching student:', xhr.responseText);
-                    }
-                    window.currentSearchRequest = null;
+            // التحقق من وجود خاصية department لكل طالب
+            window.allStudents.forEach(student => {
+                if (!student.hasOwnProperty('department')) {
+                    console.warn("يوجد طالب بدون خاصية القسم:", student);
+                    // إضافة قيمة افتراضية للقسم
+                    student.department = "علوم الحاسوب";
                 }
             });
+            
+            // فلترة الطلاب بناءً على القسم والبحث
+            let filteredStudents = window.allStudents;
+            
+            if (departmentValue) {
+                console.log("تطبيق فلتر القسم:", departmentValue);
+                filteredStudents = filteredStudents.filter(student => {
+                    const match = student.department === departmentValue;
+                    console.log("الطالب:", student.name, "القسم:", student.department, "تطابق:", match);
+                    return match;
+                });
+                console.log("الطلاب بعد فلتر القسم:", filteredStudents.length);
+            }
+            
+            if (searchValue) {
+                filteredStudents = filteredStudents.filter(student => 
+                    student.name.toLowerCase().includes(searchValue) || 
+                    student.student_id.toLowerCase().includes(searchValue)
+                );
+            }
+            
+            // عرض الطلاب المفلترين
+            displayStudents(filteredStudents);
         }
         
         // Function to display students
         function displayStudents(students) {
             if (students.length === 0) {
+                const departmentValue = $('#departmentFilter').val();
+                let message = 'لا يوجد طلاب في هذه المرحلة والكورس';
+                
+                if (departmentValue) {
+                    message += ` في قسم "${departmentValue}"`;
+                }
+                
                 $('#studentsContainer').html(`
                     <div class="alert alert-info">
                         <i class="fas fa-info-circle me-2"></i>
-                        لا يوجد طلاب في هذه المرحلة والكورس.
+                        ${message}.
                     </div>
                 `);
                 return;
@@ -678,243 +665,245 @@
                 });
             });
         }
-    });
-</script>
-
-<!-- إضافة وظائف جديدة -->
-<script>
-    // وظيفة لعرض إشعارات توست
-    function showToast(title, message, type = 'success') {
-        // تحديد لون الخلفية حسب النوع
-        let bgColor = 'bg-success';
-        let icon = 'fas fa-check-circle';
         
-        if (type === 'error') {
-            bgColor = 'bg-danger';
-            icon = 'fas fa-exclamation-circle';
-        } else if (type === 'warning') {
-            bgColor = 'bg-warning text-dark';
-            icon = 'fas fa-exclamation-triangle';
-        } else if (type === 'info') {
-            bgColor = 'bg-info text-dark';
-            icon = 'fas fa-info-circle';
+        // Function to update the title
+        function updateTitle() {
+            $('#stageTitle').text(`المرحلة ${currentStage} - الكورس ${currentSemester}`);
         }
         
-        // إنشاء التوست
-        const toast = `
-            <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 5">
-                <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true">
-                    <div class="toast-header ${bgColor} text-white">
-                        <i class="${icon} me-2"></i>
-                        <strong class="me-auto">${title}</strong>
-                        <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        // وظيفة لعرض إشعارات توست
+        function showToast(title, message, type = 'success') {
+            // تحديد لون الخلفية حسب النوع
+            let bgColor = 'bg-success';
+            let icon = 'fas fa-check-circle';
+            
+            if (type === 'error') {
+                bgColor = 'bg-danger';
+                icon = 'fas fa-exclamation-circle';
+            } else if (type === 'warning') {
+                bgColor = 'bg-warning text-dark';
+                icon = 'fas fa-exclamation-triangle';
+            } else if (type === 'info') {
+                bgColor = 'bg-info text-dark';
+                icon = 'fas fa-info-circle';
+            }
+            
+            // إنشاء التوست
+            const toast = `
+                <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 5">
+                    <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true">
+                        <div class="toast-header ${bgColor} text-white">
+                            <i class="${icon} me-2"></i>
+                            <strong class="me-auto">${title}</strong>
+                            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+                        </div>
+                        <div class="toast-body">
+                            ${message}
+                        </div>
                     </div>
-                    <div class="toast-body">
-                        ${message}
-                    </div>
-                </div>
-            </div>
-        `;
-        
-        // إزالة التوست الموجود
-        $('.toast').parent().remove();
-        
-        // إضافة التوست الجديد
-        $('body').append(toast);
-        
-        // إخفاء التوست تلقائيًا بعد 3 ثوانٍ
-        setTimeout(function() {
-            $('.toast').toast('hide');
-        }, 3000);
-    }
-    
-    // وظيفة لتحديث الإحصائيات وعرضها
-    function updateStatistics(students) {
-        // تم إزالة دالة تحديث الإحصائيات بناءً على طلب المستخدم
-    }
-    
-    // وظيفة لتحديث الإحصائيات وعرضها
-    function setupExportFunctions(students) {
-        // تصدير إلى Excel
-        $('#exportExcelBtn').off('click').on('click', function() {
-            // الحصول على بيانات الطلاب الحالية
-            $.ajax({
-                url: '/get_students_by_stage_semester',
-                type: 'POST',
-                data: {
-                    stage: currentStage,
-                    semester: currentSemester
-                },
-                success: function(response) {
-                    if (response.students && response.students.length > 0) {
-                        exportToExcel(response.students);
-                    } else {
-                        showToast('خطأ', 'لا توجد بيانات للتصدير', 'error');
-                    }
-                },
-                error: function() {
-                    showToast('خطأ', 'حدث خطأ أثناء استرجاع البيانات', 'error');
-                }
-            });
-        });
-        
-        // تصدير إلى PDF
-        $('#exportPdfBtn').off('click').on('click', function() {
-            exportToPDF();
-        });
-    }
-    
-    // وظيفة تصدير البيانات إلى Excel
-    function exportToExcel(students) {
-        try {
-            console.log("بدء تصدير Excel:", students);
-            
-            // التحقق من وجود البيانات
-            if (!students || students.length === 0) {
-                showToast('خطأ', 'لا توجد بيانات للتصدير', 'error');
-                return;
-            }
-            
-            // التحقق من وجود مكتبة XLSX
-            if (typeof XLSX === 'undefined') {
-                console.error("مكتبة XLSX غير معرفة");
-                showToast('خطأ', 'لم يتم تحميل مكتبة تصدير Excel بشكل صحيح', 'error');
-                return;
-            }
-            
-            showToast('جاري التصدير', 'يتم الآن تصدير البيانات إلى Excel، يرجى الانتظار...', 'info');
-            
-            // إنشاء مصفوفة البيانات
-            const data = [];
-            
-            // إضافة صف العناوين
-            data.push([
-                'الرقم',
-                'اسم الطالب',
-                'الرقم الجامعي',
-                'المرحلة',
-                'المادة',
-                'السعي',
-                'الامتحان النهائي',
-                'درجة القرار',
-                'المجموع',
-                'التقدير',
-                'الحالة'
-            ]);
-            
-            // إضافة بيانات الطلاب
-            let index = 1;
-            students.forEach(student => {
-                if (student.grades && Array.isArray(student.grades)) {
-                    student.grades.forEach(grade => {
-                        data.push([
-                            index,
-                            student.name,
-                            student.student_id,
-                            currentStage,
-                            grade.course_name,
-                            grade.coursework,
-                            grade.final_exam,
-                            grade.decision_marks,
-                            grade.total,
-                            grade.evaluation,
-                            grade.total >= 50 ? 'ناجح' : 'راسب'
-                        ]);
-                        index++;
-                    });
-                }
-            });
-            
-            console.log("تم إعداد البيانات للتصدير:", data.length);
-            
-            // إنشاء ورقة عمل
-            const ws = XLSX.utils.aoa_to_sheet(data);
-            
-            // إنشاء مصنف
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, `المرحلة ${currentStage} - الكورس ${currentSemester}`);
-            
-            // تصدير المصنف
-            XLSX.writeFile(wb, `بيانات_الطلاب_المرحلة${currentStage}_الكورس${currentSemester}.xlsx`);
-            
-            console.log("تم تصدير Excel بنجاح");
-            
-            // عرض إشعار نجاح
-            showToast('تم التصدير بنجاح', 'تم تصدير البيانات إلى ملف Excel بنجاح', 'success');
-        } catch (error) {
-            console.error("خطأ في تصدير Excel:", error);
-            showToast('خطأ', 'حدث خطأ أثناء تصدير البيانات: ' + error.message, 'error');
-        }
-    }
-    
-    // وظيفة تصدير البيانات إلى PDF
-    function exportToPDF() {
-        try {
-            console.log("بدء تصدير PDF");
-            
-            // تحديد العنصر المراد تصديره
-            const element = document.getElementById('studentsContainer');
-            
-            // التحقق من وجود العنصر ومحتواه
-            if (!element || element.innerHTML.trim() === '' || $(element).find('.student-row').length === 0) {
-                showToast('خطأ', 'لا توجد بيانات للتصدير', 'error');
-                return;
-            }
-            
-            // التحقق من وجود مكتبة html2pdf
-            if (typeof html2pdf === 'undefined') {
-                console.error("مكتبة html2pdf غير معرفة");
-                showToast('خطأ', 'لم يتم تحميل مكتبة تصدير PDF بشكل صحيح', 'error');
-                return;
-            }
-            
-            showToast('جاري التصدير', 'يتم الآن تصدير البيانات إلى PDF، يرجى الانتظار...', 'info');
-            
-            // إنشاء نسخة من العنصر للتصدير
-            const clonedElement = element.cloneNode(true);
-            
-            // إزالة الأزرار وعناصر التحكم غير المطلوبة من النسخة
-            $(clonedElement).find('button, input, .no-print').remove();
-            
-            // إضافة عنوان للمستند
-            const header = document.createElement('div');
-            header.innerHTML = `
-                <div style="text-align: center; margin-bottom: 20px; direction: rtl;">
-                    <h2>بيانات طلاب المرحلة ${currentStage} - الكورس ${currentSemester}</h2>
-                    <p>تاريخ التصدير: ${new Date().toLocaleDateString('ar-IQ')}</p>
                 </div>
             `;
-            clonedElement.prepend(header);
             
-            console.log("تم إعداد عنصر PDF للتصدير");
+            // إزالة التوست الموجود
+            $('.toast').parent().remove();
             
-            // خيارات التصدير
-            const options = {
-                margin: 10,
-                filename: `بيانات_الطلاب_المرحلة${currentStage}_الكورس${currentSemester}.pdf`,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2, useCORS: true, logging: true },
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
-            };
+            // إضافة التوست الجديد
+            $('body').append(toast);
             
-            // تصدير العنصر إلى PDF
-            html2pdf()
-                .from(clonedElement)
-                .set(options)
-                .save()
-                .then(() => {
-                    console.log("تم تصدير PDF بنجاح");
-                    // عرض إشعار نجاح
-                    showToast('تم التصدير بنجاح', 'تم تصدير البيانات إلى ملف PDF بنجاح', 'success');
-                })
-                .catch(error => {
-                    console.error("خطأ في تصدير PDF:", error);
-                    showToast('خطأ', 'حدث خطأ أثناء تصدير البيانات: ' + error.message, 'error');
-                });
-        } catch (error) {
-            console.error("خطأ في تصدير PDF:", error);
-            showToast('خطأ', 'حدث خطأ أثناء تصدير البيانات: ' + error.message, 'error');
+            // إخفاء التوست تلقائيًا بعد 3 ثوانٍ
+            setTimeout(function() {
+                $('.toast').toast('hide');
+            }, 3000);
         }
-    }
+        
+        // وظيفة لتحديث الإحصائيات وعرضها
+        function updateStatistics(students) {
+            // تم إزالة دالة تحديث الإحصائيات بناءً على طلب المستخدم
+        }
+        
+        // وظيفة لتحديث الإحصائيات وعرضها
+        function setupExportFunctions(students) {
+            // تصدير إلى Excel
+            $('#exportExcelBtn').off('click').on('click', function() {
+                // الحصول على بيانات الطلاب الحالية
+                $.ajax({
+                    url: '/get_students_by_stage_semester',
+                    type: 'POST',
+                    data: {
+                        stage: currentStage,
+                        semester: currentSemester
+                    },
+                    success: function(response) {
+                        if (response.students && response.students.length > 0) {
+                            exportToExcel(response.students);
+                        } else {
+                            showToast('خطأ', 'لا توجد بيانات للتصدير', 'error');
+                        }
+                    },
+                    error: function() {
+                        showToast('خطأ', 'حدث خطأ أثناء استرجاع البيانات', 'error');
+                    }
+                });
+            });
+            
+            // تصدير إلى PDF
+            $('#exportPdfBtn').off('click').on('click', function() {
+                exportToPDF();
+            });
+        }
+        
+        // وظيفة تصدير البيانات إلى Excel
+        function exportToExcel(students) {
+            try {
+                console.log("بدء تصدير Excel:", students);
+                
+                // التحقق من وجود البيانات
+                if (!students || students.length === 0) {
+                    showToast('خطأ', 'لا توجد بيانات للتصدير', 'error');
+                    return;
+                }
+                
+                // التحقق من وجود مكتبة XLSX
+                if (typeof XLSX === 'undefined') {
+                    console.error("مكتبة XLSX غير معرفة");
+                    showToast('خطأ', 'لم يتم تحميل مكتبة تصدير Excel بشكل صحيح', 'error');
+                    return;
+                }
+                
+                showToast('جاري التصدير', 'يتم الآن تصدير البيانات إلى Excel، يرجى الانتظار...', 'info');
+                
+                // إنشاء مصفوفة البيانات
+                const data = [];
+                
+                // إضافة صف العناوين
+                data.push([
+                    'الرقم',
+                    'اسم الطالب',
+                    'الرقم الجامعي',
+                    'المرحلة',
+                    'المادة',
+                    'السعي',
+                    'الامتحان النهائي',
+                    'درجة القرار',
+                    'المجموع',
+                    'التقدير',
+                    'الحالة'
+                ]);
+                
+                // إضافة بيانات الطلاب
+                let index = 1;
+                students.forEach(student => {
+                    if (student.grades && Array.isArray(student.grades)) {
+                        student.grades.forEach(grade => {
+                            data.push([
+                                index,
+                                student.name,
+                                student.student_id,
+                                currentStage,
+                                grade.course_name,
+                                grade.coursework,
+                                grade.final_exam,
+                                grade.decision_marks,
+                                grade.total,
+                                grade.evaluation,
+                                grade.total >= 50 ? 'ناجح' : 'راسب'
+                            ]);
+                            index++;
+                        });
+                    }
+                });
+                
+                console.log("تم إعداد البيانات للتصدير:", data.length);
+                
+                // إنشاء ورقة عمل
+                const ws = XLSX.utils.aoa_to_sheet(data);
+                
+                // إنشاء مصنف
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, `المرحلة ${currentStage} - الكورس ${currentSemester}`);
+                
+                // تصدير المصنف
+                XLSX.writeFile(wb, `بيانات_الطلاب_المرحلة${currentStage}_الكورس${currentSemester}.xlsx`);
+                
+                console.log("تم تصدير Excel بنجاح");
+                
+                // عرض إشعار نجاح
+                showToast('تم التصدير بنجاح', 'تم تصدير البيانات إلى ملف Excel بنجاح', 'success');
+            } catch (error) {
+                console.error("خطأ في تصدير Excel:", error);
+                showToast('خطأ', 'حدث خطأ أثناء تصدير البيانات: ' + error.message, 'error');
+            }
+        }
+        
+        // وظيفة تصدير البيانات إلى PDF
+        function exportToPDF() {
+            try {
+                console.log("بدء تصدير PDF");
+                
+                // تحديد العنصر المراد تصديره
+                const element = document.getElementById('studentsContainer');
+                
+                // التحقق من وجود العنصر ومحتواه
+                if (!element || element.innerHTML.trim() === '' || $(element).find('.student-row').length === 0) {
+                    showToast('خطأ', 'لا توجد بيانات للتصدير', 'error');
+                    return;
+                }
+                
+                // التحقق من وجود مكتبة html2pdf
+                if (typeof html2pdf === 'undefined') {
+                    console.error("مكتبة html2pdf غير معرفة");
+                    showToast('خطأ', 'لم يتم تحميل مكتبة تصدير PDF بشكل صحيح', 'error');
+                    return;
+                }
+                
+                showToast('جاري التصدير', 'يتم الآن تصدير البيانات إلى PDF، يرجى الانتظار...', 'info');
+                
+                // إنشاء نسخة من العنصر للتصدير
+                const clonedElement = element.cloneNode(true);
+                
+                // إزالة الأزرار وعناصر التحكم غير المطلوبة من النسخة
+                $(clonedElement).find('button, input, .no-print').remove();
+                
+                // إضافة عنوان للمستند
+                const header = document.createElement('div');
+                header.innerHTML = `
+                    <div style="text-align: center; margin-bottom: 20px; direction: rtl;">
+                        <h2>بيانات طلاب المرحلة ${currentStage} - الكورس ${currentSemester}</h2>
+                        <p>تاريخ التصدير: ${new Date().toLocaleDateString('ar-IQ')}</p>
+                    </div>
+                `;
+                clonedElement.prepend(header);
+                
+                console.log("تم إعداد عنصر PDF للتصدير");
+                
+                // خيارات التصدير
+                const options = {
+                    margin: 10,
+                    filename: `بيانات_الطلاب_المرحلة${currentStage}_الكورس${currentSemester}.pdf`,
+                    image: { type: 'jpeg', quality: 0.98 },
+                    html2canvas: { scale: 2, useCORS: true, logging: true },
+                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+                };
+                
+                // تصدير العنصر إلى PDF
+                html2pdf()
+                    .from(clonedElement)
+                    .set(options)
+                    .save()
+                    .then(() => {
+                        console.log("تم تصدير PDF بنجاح");
+                        // عرض إشعار نجاح
+                        showToast('تم التصدير بنجاح', 'تم تصدير البيانات إلى ملف PDF بنجاح', 'success');
+                    })
+                    .catch(error => {
+                        console.error("خطأ في تصدير PDF:", error);
+                        showToast('خطأ', 'حدث خطأ أثناء تصدير البيانات: ' + error.message, 'error');
+                    });
+            } catch (error) {
+                console.error("خطأ في تصدير PDF:", error);
+                showToast('خطأ', 'حدث خطأ أثناء تصدير البيانات: ' + error.message, 'error');
+            }
+        }
+    });
 </script>
 {% endblock %}

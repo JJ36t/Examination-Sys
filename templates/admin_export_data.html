@@ -40,6 +40,12 @@
                                                 الطلاب حسب المرحلة
                                             </label>
                                         </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="student_data_type" id="departmentStudentsData" value="department">
+                                            <label class="form-check-label" for="departmentStudentsData">
+                                                الطلاب حسب القسم
+                                            </label>
+                                        </div>
                                     </div>
                                     
                                     <div class="mb-3" id="stageSelectDiv" style="display: none;">
@@ -49,6 +55,14 @@
                                             <option value="2">المرحلة الثانية</option>
                                             <option value="3">المرحلة الثالثة</option>
                                             <option value="4">المرحلة الرابعة</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="mb-3" id="departmentSelectDiv" style="display: none;">
+                                        <label for="departmentSelect" class="form-label">القسم</label>
+                                        <select class="form-select" id="departmentSelect" name="department">
+                                            <option value="علوم الحاسوب">علوم الحاسوب</option>
+                                            <option value="نظم المعلومات">نظم المعلومات</option>
                                         </select>
                                     </div>
                                     
@@ -224,6 +238,14 @@
                                             </label>
                                         </div>
                                     </div>
+                                    <div class="mb-3">
+                                        <label for="defaultDepartment" class="form-label">القسم الافتراضي</label>
+                                        <select class="form-select" id="defaultDepartment" name="default_department">
+                                            <option value="علوم الحاسوب">علوم الحاسوب</option>
+                                            <option value="نظم المعلومات">نظم المعلومات</option>
+                                        </select>
+                                        <div class="form-text">سيتم تعيين هذا القسم للطلاب إذا لم يتم تحديد القسم في ملف الاستيراد</div>
+                                    </div>
                                     <button type="button" class="btn btn-success" id="importStudentsBtn">
                                         <i class="fas fa-upload"></i> استيراد بيانات الطلاب
                                     </button>
@@ -340,6 +362,8 @@ document.addEventListener('DOMContentLoaded', function() {
         radio.addEventListener('change', function() {
             document.getElementById('stageSelectDiv').style.display = 
                 this.value === 'stage' ? 'block' : 'none';
+            document.getElementById('departmentSelectDiv').style.display = 
+                this.value === 'department' ? 'block' : 'none';
         });
     });
     
@@ -387,11 +411,14 @@ function exportStudents() {
     const dataType = formData.get('student_data_type');
     const format = formData.get('student_export_format');
     const stage = formData.get('stage');
+    const department = formData.get('department');
     
     // بناء رابط التصدير
     let url = `/admin/export/students?format=${format}`;
     if (dataType === 'stage' && stage) {
         url += `&stage=${stage}`;
+    } else if (dataType === 'department' && department) {
+        url += `&department=${department}`;
     }
     
     // فتح الرابط في نافذة جديدة للتنزيل

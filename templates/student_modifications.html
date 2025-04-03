@@ -115,6 +115,15 @@
                                 </select>
                             </div>
                         </div>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="studentDepartment" class="form-label">القسم</label>
+                                <select class="form-select" id="studentDepartment" name="department" required>
+                                    <option value="علوم الحاسوب">علوم الحاسوب</option>
+                                    <option value="نظم المعلومات">نظم المعلومات</option>
+                                </select>
+                            </div>
+                        </div>
                         <div class="mb-3">
                             <label for="studentPassword" class="form-label">كلمة المرور</label>
                             <input type="password" class="form-control" id="studentPassword" name="password" value="password">
@@ -186,6 +195,13 @@
                             <option value="2">المرحلة الثانية</option>
                             <option value="3">المرحلة الثالثة</option>
                             <option value="4">المرحلة الرابعة</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editDepartment" class="form-label">القسم</label>
+                        <select class="form-select" id="editDepartment" name="department" required>
+                            <option value="علوم الحاسوب">علوم الحاسوب</option>
+                            <option value="نظم المعلومات">نظم المعلومات</option>
                         </select>
                     </div>
                     <div class="mb-3">
@@ -280,6 +296,7 @@
                 username: $('#studentUsername').val(),
                 student_id: $('#studentId').val(),
                 stage: $('#studentStage').val(),
+                department: $('#studentDepartment').val(),
                 password: $('#studentPassword').val()
             };
             
@@ -445,6 +462,7 @@
                                 <p><strong>اسم المستخدم:</strong> ${student.username}</p>
                                 <p><strong>رقم الطالب:</strong> ${student.student_id}</p>
                                 <p><strong>المرحلة:</strong> ${student.stage}</p>
+                                <p><strong>القسم:</strong> ${student.department || 'علوم الحاسوب'}</p>
                             </div>
                             <div class="card-footer bg-white">
                                 <button class="btn btn-primary w-100 edit-student-btn" 
@@ -453,7 +471,8 @@
                                     data-name="${student.name}"
                                     data-username="${student.username}"
                                     data-student-id-number="${student.student_id}"
-                                    data-stage="${student.stage}">
+                                    data-stage="${student.stage}"
+                                    data-department="${student.department || 'علوم الحاسوب'}">
                                     <i class="fas fa-edit me-1"></i> تعديل
                                 </button>
                             </div>
@@ -473,6 +492,7 @@
                 const username = $(this).data('username');
                 const studentIdNumber = $(this).data('student-id-number');
                 const stage = $(this).data('stage');
+                const department = $(this).data('department');
                 
                 // ملء نموذج التعديل
                 $('#editStudentId').val(studentId);
@@ -481,6 +501,7 @@
                 $('#editUsername').val(username);
                 $('#editStudentIdNumber').val(studentIdNumber);
                 $('#editStage').val(stage);
+                $('#editDepartment').val(department);
                 $('#editPassword').val('');
                 
                 // إظهار النموذج
@@ -519,6 +540,7 @@
                                 <p><strong>اسم المستخدم:</strong> ${student.username}</p>
                                 <p><strong>رقم الطالب:</strong> ${student.student_id}</p>
                                 <p><strong>المرحلة:</strong> ${student.stage}</p>
+                                <p><strong>القسم:</strong> ${student.department || 'علوم الحاسوب'}</p>
                             </div>
                             <div class="card-footer bg-white">
                                 <button class="btn btn-danger w-100 delete-student-btn" 
@@ -565,6 +587,7 @@
                 username: $('#editUsername').val(),
                 student_id_number: $('#editStudentIdNumber').val(),
                 stage: $('#editStage').val(),
+                department: $('#editDepartment').val(),
                 password: $('#editPassword').val()
             };
             

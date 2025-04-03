@@ -15,7 +15,7 @@
         <div class="admin-card-body p-0 p-md-3">
             <!-- أدوات البحث والتصفية -->
             <div class="row mb-3 g-2 px-2 pt-3">
-                <div class="col-md-8 col-sm-12 mb-2 mb-md-0">
+                <div class="col-md-6 col-sm-12 mb-2 mb-md-0">
                     <div class="input-group">
                         <input type="text" id="searchStudent" class="form-control" placeholder="ابحث عن طالب بالاسم أو رقم الطالب...">
                         <button class="btn btn-outline-primary" type="button" id="searchStudentBtn">
@@ -23,13 +23,20 @@
                         </button>
                     </div>
                 </div>
-                <div class="col-md-4 col-sm-12">
+                <div class="col-md-3 col-sm-6">
                     <select id="stageFilter" class="form-select">
                         <option value="">جميع المراحل</option>
                         <option value="1">المرحلة الأولى</option>
                         <option value="2">المرحلة الثانية</option>
                         <option value="3">المرحلة الثالثة</option>
                         <option value="4">المرحلة الرابعة</option>
+                    </select>
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <select id="departmentFilter" class="form-select">
+                        <option value="">جميع الأقسام</option>
+                        <option value="علوم الحاسوب">علوم الحاسوب</option>
+                        <option value="نظم المعلومات">نظم المعلومات</option>
                     </select>
                 </div>
             </div>
@@ -44,6 +51,7 @@
                             <th>رقم الطالب</th>
                             <th>اسم المستخدم</th>
                             <th width="90px">المرحلة</th>
+                            <th width="130px">القسم</th>
                             <th width="180px">الإجراءات</th>
                         </tr>
                     </thead>
@@ -97,6 +105,13 @@
                             <option value="4">المرحلة الرابعة</option>
                         </select>
                     </div>
+                    <div class="mb-3">
+                        <label for="studentDepartment" class="form-label">القسم</label>
+                        <select class="form-select" id="studentDepartment" name="department" required>
+                            <option value="علوم الحاسوب">علوم الحاسوب</option>
+                            <option value="نظم المعلومات">نظم المعلومات</option>
+                        </select>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -144,6 +159,13 @@
                             <option value="4">المرحلة الرابعة</option>
                         </select>
                     </div>
+                    <div class="mb-3">
+                        <label for="editStudentDepartment" class="form-label">القسم</label>
+                        <select class="form-select" id="editStudentDepartment" name="department" required>
+                            <option value="علوم الحاسوب">علوم الحاسوب</option>
+                            <option value="نظم المعلومات">نظم المعلومات</option>
+                        </select>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -183,6 +205,7 @@
         // إضافة الأحداث للأزرار
         document.getElementById('searchStudentBtn').addEventListener('click', searchStudents);
         document.getElementById('stageFilter').addEventListener('change', searchStudents);
+        document.getElementById('departmentFilter').addEventListener('change', searchStudents);
         document.getElementById('saveStudentBtn').addEventListener('click', saveStudent);
         document.getElementById('updateStudentBtn').addEventListener('click', updateStudent);
         document.getElementById('confirmDeleteBtn').addEventListener('click', deleteStudent);
@@ -212,8 +235,9 @@
     function searchStudents() {
         const searchTerm = document.getElementById('searchStudent').value;
         const stageFilter = document.getElementById('stageFilter').value;
+        const departmentFilter = document.getElementById('departmentFilter').value;
         
-        if (searchTerm.trim() === '' && stageFilter === '') {
+        if (searchTerm.trim() === '' && stageFilter === '' && departmentFilter === '') {
             loadStudents();
             return;
         }
@@ -230,6 +254,9 @@
                 if (stageFilter !== '') {
                     students = students.filter(student => student.stage == stageFilter);
                 }
+                if (departmentFilter !== '') {
+                    students = students.filter(student => (student.department || 'علوم الحاسوب') === departmentFilter);
+                }
                 displayStudents(students);
             })
             .catch(error => {
@@ -244,7 +271,7 @@
         tableBody.innerHTML = '';
         
         if (students.length === 0) {
-            tableBody.innerHTML = '<tr><td colspan="6" class="text-center">لا توجد بيانات للعرض</td></tr>';
+            tableBody.innerHTML = '<tr><td colspan="7" class="text-center">لا توجد بيانات للعرض</td></tr>';
             return;
         }
         
@@ -256,12 +283,13 @@
                 <td>${student.student_id}</td>
                 <td>${student.username}</td>
                 <td>المرحلة ${student.stage}</td>
+                <td>${student.department || 'علوم الحاسوب'}</td>
                 <td>
-                    <button class="btn btn-sm btn-primary edit-student" data-id="${student.id}" data-user-id="${student.user_id}" data-name="${student.name}" data-username="${student.username}" data-student-id="${student.student_id}" data-stage="${student.stage}">
+                    <button class="btn btn-sm btn-primary edit-student" data-id="${student.id}" data-student-id="${student.student_id}" data-name="${student.name}" data-username="${student.username}" data-stage="${student.stage}" data-user-id="${student.user_id}" data-department="${student.department || 'علوم الحاسوب'}">
                         <i class="fas fa-edit"></i> تعديل
                     </button>
                     <button class="btn btn-sm btn-danger delete-student" data-id="${student.id}" data-name="${student.name}">
-                        <i class="fas fa-trash"></i> حذف
+                        <i class="fas fa-trash-alt"></i> حذف
                     </button>
                     <a href="/admin/student_grades/${student.id}" class="btn btn-sm btn-info">
                         <i class="fas fa-chart-bar"></i> الدرجات
@@ -275,11 +303,12 @@
         document.querySelectorAll('.edit-student').forEach(button => {
             button.addEventListener('click', function() {
                 const id = this.getAttribute('data-id');
-                const userId = this.getAttribute('data-user-id');
+                const studentId = this.getAttribute('data-student-id');
                 const name = this.getAttribute('data-name');
                 const username = this.getAttribute('data-username');
-                const studentId = this.getAttribute('data-student-id');
                 const stage = this.getAttribute('data-stage');
+                const userId = this.getAttribute('data-user-id');
+                const department = this.getAttribute('data-department');
                 
                 document.getElementById('editStudentId').value = id;
                 document.getElementById('editUserId').value = userId;
@@ -288,6 +317,7 @@
                 document.getElementById('editStudentIdNumber').value = studentId;
                 document.getElementById('editStudentPassword').value = '';
                 document.getElementById('editStudentStage').value = stage;
+                document.getElementById('editStudentDepartment').value = department;
                 
                 new bootstrap.Modal(document.getElementById('editStudentModal')).show();
             });

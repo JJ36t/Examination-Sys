@@ -24,7 +24,15 @@
                             <option value="4">المرحلة الرابعة</option>
                         </select>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-2">
+                        <label for="departmentFilter" class="form-label">القسم</label>
+                        <select id="departmentFilter" class="form-select">
+                            <option value="">اختر القسم</option>
+                            <option value="علوم الحاسوب">علوم الحاسوب</option>
+                            <option value="نظم المعلومات">نظم المعلومات</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
                         <label for="semesterFilter" class="form-label">الفصل الدراسي</label>
                         <select id="semesterFilter" class="form-select">
                             <option value="">اختر الفصل</option>
@@ -32,7 +40,7 @@
                             <option value="2">الفصل الثاني</option>
                         </select>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label for="courseFilter" class="form-label">المقرر الدراسي</label>
                         <select id="courseFilter" class="form-select">
                             <option value="">اختر المقرر</option>
@@ -105,6 +113,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // إضافة الأحداث للعناصر
     document.getElementById('stageFilter').addEventListener('change', loadCourses);
     document.getElementById('semesterFilter').addEventListener('change', loadCourses);
+    document.getElementById('departmentFilter').addEventListener('change', loadCourses);
     document.getElementById('loadGradesBtn').addEventListener('click', loadStudentGrades);
     document.getElementById('saveGradesBtn').addEventListener('click', saveGrades);
     document.getElementById('exportGradesBtn').addEventListener('click', exportGrades);
@@ -115,23 +124,26 @@ document.addEventListener('DOMContentLoaded', function() {
     // مراقبة تغيير الفلاتر لتحديث حالة زر العرض
     document.getElementById('stageFilter').addEventListener('change', updateLoadButtonState);
     document.getElementById('semesterFilter').addEventListener('change', updateLoadButtonState);
+    document.getElementById('departmentFilter').addEventListener('change', updateLoadButtonState);
     document.getElementById('courseFilter').addEventListener('change', updateLoadButtonState);
 });
 
 function updateLoadButtonState() {
     const stage = document.getElementById('stageFilter').value;
     const semester = document.getElementById('semesterFilter').value;
+    const department = document.getElementById('departmentFilter').value;
     const course = document.getElementById('courseFilter').value;
     
     const loadButton = document.getElementById('loadGradesBtn');
-    loadButton.disabled = !stage || !semester || !course;
+    loadButton.disabled = !stage || !semester || !department || !course;
 }
 
 function loadCourses() {
     const stage = document.getElementById('stageFilter').value;
     const semester = document.getElementById('semesterFilter').value;
+    const department = document.getElementById('departmentFilter').value;
     
-    if (!stage || !semester) {
+    if (!stage || !semester || !department) {
         resetCourseDropdown();
         return;
     }
@@ -139,7 +151,7 @@ function loadCourses() {
     showElement('gradesContainer', false);
     showElement('noGradesMessage', false);
     
-    fetch(`/admin/api/courses?stage=${stage}&semester=${semester}`)
+    fetch(`/admin/api/courses?stage=${stage}&semester=${semester}&department=${encodeURIComponent(department)}`)
         .then(response => response.json())
         .then(data => {
             const courseSelect = document.getElementById('courseFilter');
@@ -174,10 +186,11 @@ function resetCourseDropdown() {
 function loadStudentGrades() {
     const stage = document.getElementById('stageFilter').value;
     const semester = document.getElementById('semesterFilter').value;
+    const department = document.getElementById('departmentFilter').value;
     const courseId = document.getElementById('courseFilter').value;
     
-    if (!stage || !semester || !courseId) {
-        showError('يرجى اختيار المرحلة والفصل والمقرر أولاً');
+    if (!stage || !semester || !department || !courseId) {
+        showError('يرجى اختيار المرحلة والقسم والفصل والمقرر أولاً');
         return;
     }
     
