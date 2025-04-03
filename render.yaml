@@ -3,7 +3,7 @@ services:
     name: examination-system
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app -c gunicorn.conf.py
+    startCommand: gunicorn app_entry:app -c gunicorn.conf.py
     healthCheckPath: /health
     envVars:
       - key: RENDER
